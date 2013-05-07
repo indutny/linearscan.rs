@@ -1,5 +1,5 @@
 extern mod std;
-use linearscan::GraphBuilder;
+use linearscan::graph::GraphBuilder;
 mod linearscan;
 
 #[deriving(Eq)]

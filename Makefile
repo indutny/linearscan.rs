@@ -1,9 +1,10 @@
 RUSTC ?= rustc
-RUSTFLAGS ?=
+RUSTFLAGS ?= -O
 
 TEST_BINARY ?= ./run-tests
 
 SRC ?=
+SRC += src/linearscan/graph.rs
 SRC += src/linearscan.rs
 SRC += src/tests.rs
 
