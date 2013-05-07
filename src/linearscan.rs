@@ -17,7 +17,7 @@ pub struct GraphBuilder<K> {
 
 pub struct BlockBuilder<'self, K> {
   graph: &'self mut GraphBuilder<K>,
-  block: &'self mut ~Block<K>
+  block: BlockId
 }
 
 struct Block<K> {
@@ -74,7 +74,7 @@ pub impl<K> GraphBuilder<K> {
   }
 
   fn block(&mut self, body: &fn(b: &mut BlockBuilder<K>)) -> BlockId {
-    let mut block = ~Block::new(self);
+    let block = ~Block::new(self);
     let id = block.id;
     self.blocks.insert(id, block);
 
@@ -87,12 +87,16 @@ pub impl<K> GraphBuilder<K> {
   fn with_block(&mut self, id: BlockId, body: &fn(b: &mut BlockBuilder<K>)) {
     let mut b = BlockBuilder {
       graph: self,
-      block: self.blocks.find_mut(&id).unwrap()
+      block: id
     };
     body(&mut b);
   }
 
   fn verify(&mut self) {
+  }
+
+  priv fn get_block<'r>(&'r mut self, id: BlockId) -> &'r mut ~Block<K> {
+    return self.blocks.find_mut(&id).unwrap();
   }
 
   #[inline(always)]
@@ -119,22 +123,24 @@ pub impl<K> GraphBuilder<K> {
 
 pub impl<'self, K> BlockBuilder<'self, K> {
   fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
-    assert!(!self.block.ended);
-    let id = Instruction::new(self.graph, User(kind), args);
-    self.block.instructions.push(id);
-    return id;
+    let instr_id = Instruction::new(self.graph, User(kind), args);
+
+    let block = self.graph.get_block(self.block);
+    assert!(!block.ended);
+    block.instructions.push(instr_id);
+
+    return instr_id;
   }
 
   fn end(&mut self) {
-    assert!(!self.block.ended);
-    self.block.ended = true;
+    let block = self.graph.get_block(self.block);
+    assert!(!block.ended);
+    block.ended = true;
   }
 
   fn goto(&mut self, target_id: BlockId) {
-    assert!(self.block.successors.len() <= 2);
-    self.block.successors.push(target_id);
-
-    self.graph.blocks.find_mut(&target_id).unwrap().add_predecessor(self.block.id);
+    self.graph.get_block(self.block).add_successor(target_id);
+    self.graph.get_block(target_id).add_predecessor(self.block);
     self.end();
   }
 }
@@ -150,9 +156,13 @@ pub impl<K> Block<K> {
     };
   }
 
+  fn add_successor(&mut self, succ: BlockId) {
+    assert!(self.successors.len() <= 2);
+    self.successors.push(succ);
+  }
+
   fn add_predecessor(&mut self, pred: BlockId) {
     assert!(self.predecessors.len() <= 2);
-
     self.predecessors.push(pred);
   }
 }
