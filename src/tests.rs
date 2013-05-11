@@ -1,38 +1,86 @@
 extern mod std;
-use linearscan::graph::GraphBuilder;
+
+use linearscan::{Allocator, Config, GraphBuilder};
 mod linearscan;
 
 #[deriving(Eq)]
 enum Kind {
   Action0,
   Action1,
-  Goto
+  Goto,
+  Return
+}
+
+fn graph_test(body: &fn(b: &mut GraphBuilder<Kind>)) {
+  let mut g = ~GraphBuilder::new::<Kind>();
+
+  body(&mut *g);
+
+  g.allocate(Config { register_count: 4 });
 }
 
 #[test]
 fn one_block_graph() {
-  let mut g: ~GraphBuilder<Kind> = ~GraphBuilder::new();
+  do graph_test() |g| {
+    do g.block() |b| {
+      b.make_root();
 
-  do g.block() |b| {
-    let v = b.add(Action0, ~[]);
-    b.add(Action1, ~[v]);
+      let v = b.add(Action0, ~[]);
+      b.add(Action1, ~[v]);
+    };
   };
 }
 
 #[test]
 fn loop_graph() {
-  let mut g: ~GraphBuilder<Kind> = ~GraphBuilder::new();
+  do graph_test() |g| {
+    let b0 = do g.block() |b| {
+      b.make_root();
 
-  let b0 = do g.block() |b| {
-    b.add(Goto, ~[]);
+      b.add(Goto, ~[]);
+    };
+
+    let b1 = do g.block() |b| {
+      b.add(Goto, ~[]);
+      b.goto(b0);
+    };
+
+    do g.with_block(b0) |b| {
+      b.goto(b1);
+    }
   };
+}
 
-  let b1 = do g.block() |b| {
-    b.add(Goto, ~[]);
-    b.goto(b0);
+#[test]
+fn nested_loops() {
+  do graph_test() |g| {
+    // 0 -> 1 -> 2 -> 0
+    // 1 -> 2 -> 1
+    // 1 -> (3)
+    let b0 = do g.block() |b| {
+      b.make_root();
+      b.add(Goto, ~[]);
+    };
+
+    let b1 = do g.block() |b| {
+      b.add(Goto, ~[]);
+    };
+
+    let b2 = do g.block() |b| {
+      b.add(Goto, ~[]);
+      b.branch(b0, b1);
+    };
+
+    let b3 = do g.block() |b| {
+      b.add(Return, ~[]);
+    };
+
+    do g.with_block(b0) |b| {
+      b.goto(b1);
+    };
+
+    do g.with_block(b1) |b| {
+      b.branch(b2, b3);
+    };
   };
-
-  do g.with_block(b0) |b| {
-    b.goto(b1);
-  }
 }

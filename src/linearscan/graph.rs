@@ -1,12 +1,13 @@
 use std::smallintmap::SmallIntMap;
 
-type BlockId = uint;
-type InstrId = uint;
-type IntervalId = uint;
-type RegisterId = uint;
-type StackId = uint;
+pub type BlockId = uint;
+pub type InstrId = uint;
+pub type IntervalId = uint;
+pub type RegisterId = uint;
+pub type StackId = uint;
 
 pub struct GraphBuilder<K> {
+  root: BlockId,
   block_id: BlockId,
   instr_id: InstrId,
   interval_id: IntervalId,
@@ -20,15 +21,17 @@ pub struct BlockBuilder<'self, K> {
   block: BlockId
 }
 
-struct Block<K> {
+pub struct Block<K> {
   id: BlockId,
   instructions: ~[InstrId],
   successors: ~[BlockId],
   predecessors: ~[BlockId],
+  loop_index: uint,
+  loop_depth: uint,
   ended: bool
 }
 
-struct Instruction<K> {
+pub struct Instruction<K> {
   id: InstrId,
   kind: InstrKind<K>,
   output: IntervalId,
@@ -37,12 +40,12 @@ struct Instruction<K> {
 
 // Abstraction to allow having user-specified instruction types
 // as well as internal movement instructions
-enum InstrKind<K> {
+pub enum InstrKind<K> {
   User(K),
   Move
 }
 
-struct Interval {
+pub struct Interval {
   id: IntervalId,
   value: Value,
   ranges: ~[LiveRange],
@@ -50,27 +53,28 @@ struct Interval {
   children: ~[IntervalId]
 }
 
-enum Value {
+pub enum Value {
   Virtual,
   Register(RegisterId),
   Stack(StackId)
 }
 
-struct LiveRange {
+pub struct LiveRange {
   start: InstrId,
   end: InstrId
 }
 
 pub impl<K> GraphBuilder<K> {
   fn new() -> GraphBuilder<K> {
-    return GraphBuilder {
+    GraphBuilder {
+      root: 0,
       block_id: 0,
       instr_id: 0,
       interval_id: 0,
       intervals: ~SmallIntMap::new(),
       blocks: ~SmallIntMap::new(),
       instructions: ~SmallIntMap::new()
-    };
+    }
   }
 
   fn block(&mut self, body: &fn(b: &mut BlockBuilder<K>)) -> BlockId {
@@ -92,11 +96,15 @@ pub impl<K> GraphBuilder<K> {
     body(&mut b);
   }
 
+  fn set_root(&mut self, id: BlockId) {
+    self.root = id;
+  }
+
   fn verify(&mut self) {
   }
 
-  priv fn get_block<'r>(&'r mut self, id: BlockId) -> &'r mut ~Block<K> {
-    return self.blocks.find_mut(&id).unwrap();
+  fn get_block<'r>(&'r mut self, id: BlockId) -> &'r mut ~Block<K> {
+    self.blocks.find_mut(&id).unwrap()
   }
 
   #[inline(always)]
@@ -151,17 +159,23 @@ pub impl<'self, K> BlockBuilder<'self, K> {
     self.graph.get_block(right).add_predecessor(self.block);
     self.end();
   }
+
+  fn make_root(&mut self) {
+    self.graph.set_root(self.block);
+  }
 }
 
-impl<K> Block<K> {
+pub impl<K> Block<K> {
   fn new(graph: &mut GraphBuilder<K>) -> Block<K> {
-    return Block {
+    Block {
       id: graph.block_id(),
       instructions: ~[],
       successors: ~[],
       predecessors: ~[],
+      loop_index: 0,
+      loop_depth: 0,
       ended: false
-    };
+    }
   }
 
   fn add_successor<'r>(&'r mut self, succ: BlockId) -> &'r mut Block<K> {
@@ -176,7 +190,7 @@ impl<K> Block<K> {
   }
 }
 
-impl<K> Instruction<K> {
+pub impl<K> Instruction<K> {
   fn new(graph: &mut GraphBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
     let r = Instruction {
       id: graph.instr_id(),
@@ -192,7 +206,7 @@ impl<K> Instruction<K> {
   }
 }
 
-impl<K> Interval {
+pub impl<K> Interval {
   fn new(graph: &mut GraphBuilder<K>) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
