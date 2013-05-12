@@ -14,7 +14,7 @@ pub trait Allocator {
 impl<K> Allocator for Graph<K> {
   pub fn allocate(&mut self, config: Config) {
     let list = self.flatten();
-    self.build_liveranges();
+    self.build_liveranges(list);
     io::println(fmt!("%?", list));
   }
 }

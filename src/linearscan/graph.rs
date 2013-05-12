@@ -1,4 +1,5 @@
 use std::smallintmap::SmallIntMap;
+use std::bitv::BitvSet;
 
 pub type BlockId = uint;
 pub type InstrId = uint;
@@ -32,10 +33,10 @@ pub struct Block<K> {
   loop_depth: uint,
 
   // Fields for liveness analysis
-  live_gen: ~SmallIntMap<IntervalId>,
-  live_kill: ~SmallIntMap<IntervalId>,
-  live_in: ~SmallIntMap<IntervalId>,
-  live_out: ~SmallIntMap<IntervalId>,
+  live_gen: ~BitvSet,
+  live_kill: ~BitvSet,
+  live_in: ~BitvSet,
+  live_out: ~BitvSet,
 
   ended: bool
 }
@@ -43,6 +44,7 @@ pub struct Block<K> {
 pub struct Instruction<K> {
   id: InstrId,
   flat_id: InstrId,
+  block: BlockId,
   kind: InstrKind<K>,
   output: IntervalId,
   inputs: ~[IntervalId]
@@ -142,7 +144,7 @@ pub impl<K> Graph<K> {
 
 pub impl<'self, K> BlockBuilder<'self, K> {
   fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
-    let instr_id = Instruction::new(self.graph, User(kind), args);
+    let instr_id = Instruction::new(self, User(kind), args);
 
     let block = self.graph.get_block(self.block);
     assert!(!block.ended);
@@ -186,10 +188,10 @@ pub impl<K> Block<K> {
       predecessors: ~[],
       loop_index: 0,
       loop_depth: 0,
-      live_gen: ~SmallIntMap::new(),
-      live_kill: ~SmallIntMap::new(),
-      live_in: ~SmallIntMap::new(),
-      live_out: ~SmallIntMap::new(),
+      live_gen: ~BitvSet::new(),
+      live_kill: ~BitvSet::new(),
+      live_in: ~BitvSet::new(),
+      live_out: ~BitvSet::new(),
       ended: false
     }
   }
@@ -207,18 +209,19 @@ pub impl<K> Block<K> {
 }
 
 pub impl<K> Instruction<K> {
-  fn new(graph: &mut Graph<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
+  fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
     let r = Instruction {
-      id: graph.instr_id(),
+      id: b.graph.instr_id(),
       flat_id: 0,
+      block: b.block,
       kind: kind,
-      output: Interval::new(graph),
+      output: Interval::new(b.graph),
       inputs: do vec::map(args) |id| {
-        graph.instructions.get(id).output
+        b.graph.instructions.get(id).output
       }
     };
     let id = r.id;
-    graph.instructions.insert(r.id, ~r);
+    b.graph.instructions.insert(r.id, ~r);
     return id;
   }
 }

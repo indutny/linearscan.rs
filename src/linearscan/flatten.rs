@@ -138,6 +138,7 @@ impl<K> Flatten for Graph<K> {
       }
     }
 
+    // Assign flat ids to every instruction
     let mut instr_id = 0;
     for result.each() |block| {
       let instructions = copy self.get_block(*block).instructions;
