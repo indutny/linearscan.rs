@@ -38,24 +38,42 @@ impl<K> LivenessHelper for Graph<K> {
   }
 
   fn build_global(&mut self, blocks: &[BlockId]) {
+    for blocks.each() |id| {
+      let block = self.get_block(id);
+
+      // Move difference(live_kill, live_gen) to live_in
+      block.live_in.union_with(block.live_kill);
+      block.live_in.difference_with(block.live_gen);
+
+      // Move live_gen to live_out
+      block.live_out.union_with(block.live_gen);
+    };
+
     let mut change = true;
     while change {
       change = false;
 
       for blocks.each() |block| {
-        // Propagate difference(live_kill, live_gen) from successors to live_in
         let successors = copy self.get_block(block).successors;
 
-        let mut diff = BitvSet::new();
+        let mut tmp = ~BitvSet::new();
         for successors.each() |succ| {
-          let block = self.get_block(succ);
-
-          diff.union_with(block.live_kill);
-          diff.difference_with(block.live_gen);
+          tmp.union_with(self.get_block(succ).live_in);
         };
 
-        // Propagate difference(live_kill, live_gen) from successors to live_in
-      };
+        // Propagate succ.live_in to block.live_out
+        if !self.get_block(block).live_out.is_superset(tmp) {
+          self.get_block(block).live_out.union_with(tmp);
+          change = true;
+        }
+
+        // Propagate diff(succ.live_in, block.live_gen) to block.live_in
+        tmp.difference_with(self.get_block(block).live_gen);
+        if !self.get_block(block).live_in.is_superset(tmp) {
+          self.get_block(block).live_in.union_with(tmp);
+          change = true;
+        }
+      }
     }
   }
 }
