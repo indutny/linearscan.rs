@@ -33,23 +33,17 @@ impl<K> LivenessHelper for Graph<K> {
         let output = self.get_instr(instr).output;
         let inputs = copy self.get_instr(instr).inputs;
 
-        self.get_block(block).live_gen.insert(output);
+        self.get_block(block).live_kill.insert(output);
         for inputs.each() |input| {
-          self.get_block(block).live_kill.insert(*input);
+          if !self.get_block(block).live_kill.contains(input) {
+            self.get_block(block).live_gen.insert(*input);
+          }
         }
       }
     };
   }
 
   fn build_global(&mut self, blocks: &[BlockId]) {
-    for blocks.each() |id| {
-      let block = self.get_block(id);
-
-      // Move difference(live_kill, live_gen) to live_in
-      block.live_in.union_with(block.live_kill);
-      block.live_in.difference_with(block.live_gen);
-    };
-
     let mut change = true;
     while change {
       change = false;
@@ -68,10 +62,12 @@ impl<K> LivenessHelper for Graph<K> {
           change = true;
         }
 
-        // Propagate diff(succ.live_in, block.live_gen) to block.live_in
-        tmp.difference_with(self.get_block(block).live_gen);
-        if !self.get_block(block).live_in.is_superset(tmp) {
-          self.get_block(block).live_in.union_with(tmp);
+        // Propagate union(diff(block.live_out, block.live_kill), block.live_gen) to block.live_in
+        let mut old = copy self.get_block(block).live_in;
+        old.difference_with(self.get_block(block).live_kill);
+        old.union_with(self.get_block(block).live_gen);
+        if old != self.get_block(block).live_in {
+          self.get_block(block).live_in = old;
           change = true;
         }
       }
@@ -86,8 +82,8 @@ impl<K> LivenessHelper for Graph<K> {
         let output = self.get_instr(instr).output;
         let inputs = copy self.get_instr(instr).inputs;
 
+        // If output outlives the block
         if self.get_block(id).live_out.contains(&output) {
-
         }
       }
     }

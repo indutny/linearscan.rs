@@ -283,3 +283,26 @@ pub impl Interval {
     self.uses.push(Use { kind: kind, pos: pos });
   }
 }
+
+impl Eq for LiveRange {
+  #[inline(always)]
+  fn eq(&self, other: &LiveRange) -> bool { self.start == other.start && self.end == other.end }
+
+  #[inline(always)]
+  fn ne(&self, other: &LiveRange) -> bool { !self.eq(other) }
+}
+
+// LiveRange is ordered by start position
+impl Ord for LiveRange {
+  #[inline(always)]
+  fn lt(&self, other: &LiveRange) -> bool { self.start < other.start }
+
+  #[inline(always)]
+  fn gt(&self, other: &LiveRange) -> bool { self.start > other.start }
+
+  #[inline(always)]
+  fn le(&self, other: &LiveRange) -> bool { !self.gt(other) }
+
+  #[inline(always)]
+  fn ge(&self, other: &LiveRange) -> bool { !self.lt(other) }
+}
