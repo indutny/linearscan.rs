@@ -1,6 +1,6 @@
 extern mod std;
 
-use linearscan::{Allocator, Config, Graph, InstrArg, UseAny};
+use linearscan::{Allocator, Config, Graph, KindHelper, UseKind, UseAny};
 mod linearscan;
 
 #[deriving(Eq)]
@@ -9,6 +9,23 @@ enum Kind {
   Action1,
   Goto,
   Return
+}
+
+impl KindHelper for Kind {
+  fn is_call(&self) -> bool {
+    false
+  }
+
+  fn tmp_count(&self) -> uint {
+    match self {
+      &Action0 => 1,
+      _ => 0
+    }
+  }
+
+  fn use_kind(&self, i: uint) -> UseKind {
+    UseAny
+  }
 }
 
 fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
@@ -26,7 +43,7 @@ fn one_block_graph() {
       b.make_root();
 
       let v = b.add(Action0, ~[]);
-      b.add(Action1, ~[InstrArg(UseAny, v)]);
+      b.add(Action1, ~[v]);
     };
   };
 }

@@ -1,4 +1,4 @@
-use linearscan::graph::{Graph};
+use linearscan::graph::{Graph, KindHelper};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 
@@ -11,7 +11,7 @@ pub trait Allocator {
   pub fn allocate(&mut self, config: Config);
 }
 
-impl<K> Allocator for Graph<K> {
+impl<K: KindHelper> Allocator for Graph<K> {
   pub fn allocate(&mut self, config: Config) {
     let list = self.flatten();
     self.build_liveranges(list);

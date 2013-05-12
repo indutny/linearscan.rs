@@ -50,8 +50,6 @@ pub struct Instruction<K> {
   inputs: ~[IntervalId]
 }
 
-pub struct InstrArg(UseKind, InstrId);
-
 // Abstraction to allow having user-specified instruction types
 // as well as internal movement instructions
 pub enum InstrKind<K> {
@@ -90,7 +88,13 @@ pub struct LiveRange {
   end: InstrId
 }
 
-pub impl<K> Graph<K> {
+pub trait KindHelper {
+  fn is_call(&self) -> bool;
+  fn tmp_count(&self) -> uint;
+  fn use_kind(&self, i: uint) -> UseKind;
+}
+
+pub impl<K: KindHelper> Graph<K> {
   fn new() -> Graph<K> {
     Graph {
       root: 0,
@@ -160,8 +164,8 @@ pub impl<K> Graph<K> {
   }
 }
 
-pub impl<'self, K> BlockBuilder<'self, K> {
-  fn add(&mut self, kind: K, args: ~[InstrArg]) -> InstrId {
+pub impl<'self, K: KindHelper> BlockBuilder<'self, K> {
+  fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = Instruction::new(self, User(kind), args);
 
     let block = self.graph.get_block(&self.block);
@@ -197,7 +201,7 @@ pub impl<'self, K> BlockBuilder<'self, K> {
   }
 }
 
-pub impl<K> Block<K> {
+pub impl<K: KindHelper> Block<K> {
   fn new(graph: &mut Graph<K>) -> Block<K> {
     Block {
       id: graph.block_id(),
@@ -226,21 +230,23 @@ pub impl<K> Block<K> {
   }
 }
 
-pub impl<K> Instruction<K> {
-  fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrArg]) -> InstrId {
+pub impl<K: KindHelper> Instruction<K> {
+  fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
     let id = b.graph.instr_id();
+
+    let inputs = do vec::mapi(args) |i, input_id| {
+      let output = b.graph.instructions.get(input_id).output;
+      b.graph.get_interval(&output).add_use(kind.use_kind(i), id);
+      output
+    };
+
     let r = Instruction {
       id: id,
       flat_id: 0,
       block: b.block,
       kind: kind,
       output: Interval::new(b.graph),
-      inputs: do vec::map(args) |arg| {
-        let InstrArg(use_kind, id) = *arg;
-        let output = b.graph.instructions.get(&id).output;
-        b.graph.get_interval(&output).add_use(use_kind, id);
-        output
-      }
+      inputs: inputs
     };
     b.graph.instructions.insert(r.id, ~r);
     return id;
@@ -248,7 +254,7 @@ pub impl<K> Instruction<K> {
 }
 
 pub impl Interval {
-  fn new<K>(graph: &mut Graph<K>) -> IntervalId {
+  fn new<K: KindHelper>(graph: &mut Graph<K>) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: Virtual,
@@ -281,6 +287,29 @@ pub impl Interval {
 
   fn add_use(&mut self, kind: UseKind, pos: InstrId) {
     self.uses.push(Use { kind: kind, pos: pos });
+  }
+}
+
+impl<K: KindHelper> KindHelper for InstrKind<K> {
+  fn is_call(&self) -> bool {
+    match self {
+      &User(ref k) => k.is_call(),
+      &Move => false
+    }
+  }
+
+  fn tmp_count(&self) -> uint {
+    match self {
+      &User(ref k) => k.tmp_count(),
+      &Move => 1
+    }
+  }
+
+  fn use_kind(&self, i: uint) -> UseKind {
+    match self {
+      &User(ref k) => k.use_kind(i),
+      &Move => UseAny
+    }
   }
 }
 

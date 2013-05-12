@@ -1,5 +1,5 @@
-pub use linearscan::graph::{Graph, InstrArg,
-                            UseAny, UseRegister, UseFixed,
+pub use linearscan::graph::{Graph, KindHelper,
+                            UseKind, UseAny, UseRegister, UseFixed,
                             Virtual, Register, Stack};
 pub use linearscan::allocator::{Allocator, Config};
 
