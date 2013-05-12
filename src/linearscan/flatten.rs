@@ -43,7 +43,7 @@ impl<K> FlattenHelper for Graph<K> {
         } else {
           queue.push(*succ);
         }
-      };
+      }
     }
 
     return ends;
@@ -58,7 +58,7 @@ impl<K> FlattenHelper for Graph<K> {
       let mut queue = ~[];
       let expected_depth = self.get_block(start).loop_depth;
 
-      for ends.each() |end| { queue.push(*end); };
+      for ends.each() |end| { queue.push(*end); }
 
       while queue.len() > 0 {
         let cur = queue.shift();
@@ -75,13 +75,13 @@ impl<K> FlattenHelper for Graph<K> {
         if cur != *start {
           for block.predecessors.each() |pred| {
             queue.push(*pred);
-          };
+          }
         }
       }
 
       // Increment loop index
       loop_index += 1;
-    };
+    }
   }
 }
 
@@ -146,8 +146,8 @@ impl<K> Flatten for Graph<K> {
       for instructions.each() |instr| {
         self.get_instr(instr).flat_id = instr_id;
         instr_id += 2;
-      };
-    };
+      }
+    }
 
     return result;
   }

@@ -1,4 +1,4 @@
-use linearscan::graph::{Graph, BlockId};
+use linearscan::graph::{Graph};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 
