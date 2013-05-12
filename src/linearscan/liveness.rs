@@ -1,4 +1,5 @@
 use linearscan::graph::{Graph, BlockId, InstrId, Interval, LiveRange};
+use std::bitv::BitvSet;
 
 pub trait Liveness {
   fn build_liveranges(&mut self, blocks: &[BlockId]);
@@ -22,32 +23,39 @@ impl<K> Liveness for Graph<K> {
 impl<K> LivenessHelper for Graph<K> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
-      let instructions = copy self.get_block(*block).instructions;
-      let block_start = self.get_instr(*instructions.head()).flat_id;
-      let block_end = self.get_instr(*instructions.last()).flat_id;
+      let instructions = copy self.get_block(block).instructions;
 
       for instructions.each() |instr| {
-        let flat_id = self.get_instr(*instr).flat_id;
-        let output = self.get_instr(*instr).output;
-        let inputs = copy self.get_instr(*instr).inputs;
+        let output = self.get_instr(instr).output;
+        let inputs = copy self.get_instr(instr).inputs;
 
-        self.get_block(*block).live_gen.insert(output);
-        self.get_interval(output).add_range(flat_id, block_end);
-
+        self.get_block(block).live_gen.insert(output);
         for inputs.each() |input| {
-          // Interval is live for the part of the block
-          if self.get_block(*block).live_gen.contains(input) {
-            self.get_interval(*input).extend_range(flat_id);
-          } else {
-            // Interval is live from the start of the block
-            self.get_interval(*input).add_range(block_start, flat_id);
-          }
-          self.get_block(*block).live_kill.insert(*input);
+          self.get_block(block).live_kill.insert(*input);
         };
       };
     };
   }
 
   fn build_global(&mut self, blocks: &[BlockId]) {
+    let mut change = true;
+    while change {
+      change = false;
+
+      for blocks.each() |block| {
+        // Propagate difference(live_kill, live_gen) from successors to live_in
+        let successors = copy self.get_block(block).successors;
+
+        let mut diff = BitvSet::new();
+        for successors.each() |succ| {
+          let block = self.get_block(succ);
+
+          diff.union_with(block.live_kill);
+          diff.difference_with(block.live_gen);
+        };
+
+        // Propagate difference(live_kill, live_gen) from successors to live_in
+      };
+    }
   }
 }

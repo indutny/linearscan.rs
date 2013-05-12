@@ -126,16 +126,16 @@ pub impl<K> Graph<K> {
     self.root = id;
   }
 
-  fn get_block<'r>(&'r mut self, id: BlockId) -> &'r mut ~Block<K> {
-    self.blocks.find_mut(&id).unwrap()
+  fn get_block<'r>(&'r mut self, id: &BlockId) -> &'r mut ~Block<K> {
+    self.blocks.find_mut(id).unwrap()
   }
 
-  fn get_instr<'r>(&'r mut self, id: InstrId) -> &'r mut ~Instruction<K> {
-    self.instructions.find_mut(&id).unwrap()
+  fn get_instr<'r>(&'r mut self, id: &InstrId) -> &'r mut ~Instruction<K> {
+    self.instructions.find_mut(id).unwrap()
   }
 
-  fn get_interval<'r>(&'r mut self, id: IntervalId) -> &'r mut ~Interval {
-    self.intervals.find_mut(&id).unwrap()
+  fn get_interval<'r>(&'r mut self, id: &IntervalId) -> &'r mut ~Interval {
+    self.intervals.find_mut(id).unwrap()
   }
 
   #[inline(always)]
@@ -164,7 +164,7 @@ pub impl<'self, K> BlockBuilder<'self, K> {
   fn add(&mut self, kind: K, args: ~[InstrArg]) -> InstrId {
     let instr_id = Instruction::new(self, User(kind), args);
 
-    let block = self.graph.get_block(self.block);
+    let block = self.graph.get_block(&self.block);
     assert!(!block.ended);
     block.instructions.push(instr_id);
 
@@ -172,23 +172,23 @@ pub impl<'self, K> BlockBuilder<'self, K> {
   }
 
   fn end(&mut self) {
-    let block = self.graph.get_block(self.block);
+    let block = self.graph.get_block(&self.block);
     assert!(!block.ended);
     assert!(block.instructions.len() > 0);
     block.ended = true;
   }
 
   fn goto(&mut self, target_id: BlockId) {
-    self.graph.get_block(self.block).add_successor(target_id);
-    self.graph.get_block(target_id).add_predecessor(self.block);
+    self.graph.get_block(&self.block).add_successor(target_id);
+    self.graph.get_block(&target_id).add_predecessor(self.block);
     self.end();
   }
 
   fn branch(&mut self, left: BlockId, right: BlockId) {
-    self.graph.get_block(self.block).add_successor(left)
-                                    .add_successor(right);
-    self.graph.get_block(left).add_predecessor(self.block);
-    self.graph.get_block(right).add_predecessor(self.block);
+    self.graph.get_block(&self.block).add_successor(left)
+                                     .add_successor(right);
+    self.graph.get_block(&left).add_predecessor(self.block);
+    self.graph.get_block(&right).add_predecessor(self.block);
     self.end();
   }
 
@@ -238,7 +238,7 @@ pub impl<K> Instruction<K> {
       inputs: do vec::map(args) |arg| {
         let InstrArg(use_kind, id) = *arg;
         let output = b.graph.instructions.get(&id).output;
-        b.graph.get_interval(output).add_use(use_kind, id);
+        b.graph.get_interval(&output).add_use(use_kind, id);
         output
       }
     };

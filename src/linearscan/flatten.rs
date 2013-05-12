@@ -32,7 +32,7 @@ impl<K> FlattenHelper for Graph<K> {
     while queue.len() > 0 {
       let cur = queue.shift();
       visited.insert(cur);
-      for self.get_block(cur).successors.each() |succ| {
+      for self.get_block(&cur).successors.each() |succ| {
         if visited.contains(succ) {
           // Loop detected
           if ends.contains_key(succ) {
@@ -56,13 +56,13 @@ impl<K> FlattenHelper for Graph<K> {
     for ends.each() |start, ends| {
       let mut visited = ~BitvSet::new();
       let mut queue = ~[];
-      let expected_depth = self.get_block(*start).loop_depth;
+      let expected_depth = self.get_block(start).loop_depth;
 
       for ends.each() |end| { queue.push(*end); };
 
       while queue.len() > 0 {
         let cur = queue.shift();
-        let block = self.get_block(cur);
+        let block = self.get_block(&cur);
 
         // Set depth and index of not-visited-yet nodes,
         // if we're not visiting nested loop
@@ -101,15 +101,15 @@ impl<K> Flatten for Graph<K> {
 
         // Visit successors in loop order
         // TODO(indutny): avoid copying
-        let index = self.get_block(cur).loop_index;
-        let depth = self.get_block(cur).loop_depth;
-        let successors = copy self.get_block(cur).successors;
+        let index = self.get_block(&cur).loop_index;
+        let depth = self.get_block(&cur).loop_depth;
+        let successors = copy self.get_block(&cur).successors;
         match successors.len() {
           0 => (),
           1 => queue.push(successors[0]),
           2 => {
-            let scores = successors.map(|succ| {
-              let block = self.get_block(*succ);
+            let scores = do successors.map() |succ| {
+              let block = self.get_block(succ);
               let mut res = 0;
 
               if index == block.loop_index {
@@ -124,7 +124,7 @@ impl<K> Flatten for Graph<K> {
                 block: *succ,
                 score: res
               }
-            });
+            };
 
             if scores[0].score >= scores[1].score {
               queue.push(scores[0].block);
@@ -142,9 +142,9 @@ impl<K> Flatten for Graph<K> {
     // Assign flat ids to every instruction
     let mut instr_id = 0;
     for result.each() |block| {
-      let instructions = copy self.get_block(*block).instructions;
+      let instructions = copy self.get_block(block).instructions;
       for instructions.each() |instr| {
-        self.get_instr(*instr).flat_id = instr_id;
+        self.get_instr(instr).flat_id = instr_id;
         instr_id += 2;
       };
     };
