@@ -5,9 +5,10 @@ TEST_BINARY ?= ./run-tests
 
 SRC ?=
 SRC += src/linearscan.rs
-SRC += src/linearscan/graph.rs
-SRC += src/linearscan/flatten.rs
 SRC += src/linearscan/allocator.rs
+SRC += src/linearscan/flatten.rs
+SRC += src/linearscan/graph.rs
+SRC += src/linearscan/liveness.rs
 SRC += src/tests.rs
 
 all: $(TEST_BINARY)

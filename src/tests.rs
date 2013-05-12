@@ -1,6 +1,6 @@
 extern mod std;
 
-use linearscan::{Allocator, Config, GraphBuilder};
+use linearscan::{Allocator, Config, Graph};
 mod linearscan;
 
 #[deriving(Eq)]
@@ -11,8 +11,8 @@ enum Kind {
   Return
 }
 
-fn graph_test(body: &fn(b: &mut GraphBuilder<Kind>)) {
-  let mut g = ~GraphBuilder::new::<Kind>();
+fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
+  let mut g = ~Graph::new::<Kind>();
 
   body(&mut *g);
 

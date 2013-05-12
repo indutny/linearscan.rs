@@ -1,5 +1,6 @@
-use linearscan::graph::{GraphBuilder, BlockId};
+use linearscan::graph::{Graph, BlockId};
 use linearscan::flatten::Flatten;
+use linearscan::liveness::Liveness;
 
 pub struct Config {
   register_count: uint
@@ -10,10 +11,10 @@ pub trait Allocator {
   pub fn allocate(&mut self, config: Config);
 }
 
-impl<K> Allocator for GraphBuilder<K> {
-
+impl<K> Allocator for Graph<K> {
   pub fn allocate(&mut self, config: Config) {
     let list = self.flatten();
+    self.build_liveranges();
     io::println(fmt!("%?", list));
   }
 }

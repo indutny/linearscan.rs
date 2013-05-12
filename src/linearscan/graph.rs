@@ -6,7 +6,7 @@ pub type IntervalId = uint;
 pub type RegisterId = uint;
 pub type StackId = uint;
 
-pub struct GraphBuilder<K> {
+pub struct Graph<K> {
   root: BlockId,
   block_id: BlockId,
   instr_id: InstrId,
@@ -17,7 +17,7 @@ pub struct GraphBuilder<K> {
 }
 
 pub struct BlockBuilder<'self, K> {
-  graph: &'self mut GraphBuilder<K>,
+  graph: &'self mut Graph<K>,
   block: BlockId
 }
 
@@ -64,9 +64,9 @@ pub struct LiveRange {
   end: InstrId
 }
 
-pub impl<K> GraphBuilder<K> {
-  fn new() -> GraphBuilder<K> {
-    GraphBuilder {
+pub impl<K> Graph<K> {
+  fn new() -> Graph<K> {
+    Graph {
       root: 0,
       block_id: 0,
       instr_id: 0,
@@ -98,9 +98,6 @@ pub impl<K> GraphBuilder<K> {
 
   fn set_root(&mut self, id: BlockId) {
     self.root = id;
-  }
-
-  fn verify(&mut self) {
   }
 
   fn get_block<'r>(&'r mut self, id: BlockId) -> &'r mut ~Block<K> {
@@ -143,6 +140,7 @@ pub impl<'self, K> BlockBuilder<'self, K> {
   fn end(&mut self) {
     let block = self.graph.get_block(self.block);
     assert!(!block.ended);
+    assert!(block.instructions.len() > 0);
     block.ended = true;
   }
 
@@ -166,7 +164,7 @@ pub impl<'self, K> BlockBuilder<'self, K> {
 }
 
 pub impl<K> Block<K> {
-  fn new(graph: &mut GraphBuilder<K>) -> Block<K> {
+  fn new(graph: &mut Graph<K>) -> Block<K> {
     Block {
       id: graph.block_id(),
       instructions: ~[],
@@ -191,7 +189,7 @@ pub impl<K> Block<K> {
 }
 
 pub impl<K> Instruction<K> {
-  fn new(graph: &mut GraphBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
+  fn new(graph: &mut Graph<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
     let r = Instruction {
       id: graph.instr_id(),
       kind: kind,
@@ -207,7 +205,7 @@ pub impl<K> Instruction<K> {
 }
 
 pub impl<K> Interval {
-  fn new(graph: &mut GraphBuilder<K>) -> IntervalId {
+  fn new(graph: &mut Graph<K>) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: Virtual,

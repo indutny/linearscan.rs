@@ -1,5 +1,5 @@
 use std::smallintmap::SmallIntMap;
-use linearscan::graph::{GraphBuilder, BlockId};
+use linearscan::graph::{Graph, BlockId};
 
 struct MapResult {
   block: BlockId,
@@ -7,6 +7,11 @@ struct MapResult {
 }
 
 pub trait Flatten {
+  // Perform flatten itself
+  fn flatten(&mut self) -> ~[BlockId];
+}
+
+trait FlattenHelper {
   // Flatten CFG and detect/enumerate loops
   //
   // Get map: loop_start => [ loop ends ]
@@ -14,12 +19,9 @@ pub trait Flatten {
 
   // Assign loop_index/loop_depth to each block
   fn flatten_assign_indexes(&mut self);
-
-  // Perform flatten itself
-  fn flatten(&mut self) -> ~[BlockId];
 }
 
-impl<K> Flatten for GraphBuilder<K> {
+impl<K> FlattenHelper for Graph<K> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
     let mut queue = ~[self.root];
     let mut visited = ~SmallIntMap::new();
@@ -80,7 +82,9 @@ impl<K> Flatten for GraphBuilder<K> {
       loop_index += 1;
     };
   }
+}
 
+impl<K> Flatten for Graph<K> {
   fn flatten(&mut self) -> ~[BlockId] {
     let mut queue = ~[self.root];
     let mut result = ~[];
