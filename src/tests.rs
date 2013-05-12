@@ -1,6 +1,6 @@
 extern mod std;
 
-use linearscan::{Allocator, Config, Graph};
+use linearscan::{Allocator, Config, Graph, InstrArg, UseAny};
 mod linearscan;
 
 #[deriving(Eq)]
@@ -26,7 +26,7 @@ fn one_block_graph() {
       b.make_root();
 
       let v = b.add(Action0, ~[]);
-      b.add(Action1, ~[v]);
+      b.add(Action1, ~[InstrArg(UseAny, v)]);
     };
   };
 }

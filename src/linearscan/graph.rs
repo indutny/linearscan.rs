@@ -50,6 +50,8 @@ pub struct Instruction<K> {
   inputs: ~[IntervalId]
 }
 
+pub struct InstrArg(UseKind, InstrId);
+
 // Abstraction to allow having user-specified instruction types
 // as well as internal movement instructions
 pub enum InstrKind<K> {
@@ -74,7 +76,7 @@ pub enum Value {
 
 pub struct Use {
   kind: UseKind,
-  id: InstrId
+  pos: InstrId
 }
 
 pub enum UseKind {
@@ -159,7 +161,7 @@ pub impl<K> Graph<K> {
 }
 
 pub impl<'self, K> BlockBuilder<'self, K> {
-  fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
+  fn add(&mut self, kind: K, args: ~[InstrArg]) -> InstrId {
     let instr_id = Instruction::new(self, User(kind), args);
 
     let block = self.graph.get_block(self.block);
@@ -225,18 +227,21 @@ pub impl<K> Block<K> {
 }
 
 pub impl<K> Instruction<K> {
-  fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
+  fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrArg]) -> InstrId {
+    let id = b.graph.instr_id();
     let r = Instruction {
-      id: b.graph.instr_id(),
+      id: id,
       flat_id: 0,
       block: b.block,
       kind: kind,
       output: Interval::new(b.graph),
-      inputs: do vec::map(args) |id| {
-        b.graph.instructions.get(id).output
+      inputs: do vec::map(args) |arg| {
+        let InstrArg(use_kind, id) = *arg;
+        let output = b.graph.instructions.get(&id).output;
+        b.graph.get_interval(output).add_use(use_kind, id);
+        output
       }
     };
-    let id = r.id;
     b.graph.instructions.insert(r.id, ~r);
     return id;
   }
@@ -272,5 +277,9 @@ pub impl Interval {
   fn extend_range(&mut self, end: InstrId) {
     assert!(self.ranges.len() != 0 && self.ranges.head().end <= end);
     self.ranges[0].end = end;
+  }
+
+  fn add_use(&mut self, kind: UseKind, pos: InstrId) {
+    self.uses.push(Use { kind: kind, pos: pos });
   }
 }
