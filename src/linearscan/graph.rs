@@ -62,6 +62,7 @@ pub struct Interval {
   value: Value,
   ranges: ~[LiveRange],
   parent: Option<IntervalId>,
+  uses: ~[Use],
   children: ~[IntervalId]
 }
 
@@ -69,6 +70,17 @@ pub enum Value {
   Virtual,
   Register(RegisterId),
   Stack(StackId)
+}
+
+pub struct Use {
+  kind: UseKind,
+  id: InstrId
+}
+
+pub enum UseKind {
+  UseAny,
+  UseRegister,
+  UseFixed(Value)
 }
 
 pub struct LiveRange {
@@ -118,6 +130,10 @@ pub impl<K> Graph<K> {
 
   fn get_instr<'r>(&'r mut self, id: InstrId) -> &'r mut ~Instruction<K> {
     self.instructions.find_mut(&id).unwrap()
+  }
+
+  fn get_interval<'r>(&'r mut self, id: IntervalId) -> &'r mut ~Interval {
+    self.intervals.find_mut(&id).unwrap()
   }
 
   #[inline(always)]
@@ -226,17 +242,35 @@ pub impl<K> Instruction<K> {
   }
 }
 
-pub impl<K> Interval {
-  fn new(graph: &mut Graph<K>) -> IntervalId {
+pub impl Interval {
+  fn new<K>(graph: &mut Graph<K>) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: Virtual,
       ranges: ~[],
       parent: None,
+      uses: ~[],
       children: ~[]
     };
     let id = r.id;
     graph.intervals.insert(r.id, ~r);
     return id;
+  }
+
+  fn add_range(&mut self, start: InstrId, end: InstrId) {
+    assert!(self.ranges.len() == 0 || self.ranges.last().end <= start);
+
+    // Extend last range
+    if self.ranges.len() > 0 && self.ranges.last().end == start {
+      self.ranges[self.ranges.len() - 1].end = end;
+    } else {
+      // Insert new range
+      self.ranges.push(LiveRange { start: start, end: end });
+    }
+  }
+
+  fn extend_range(&mut self, end: InstrId) {
+    assert!(self.ranges.len() != 0 && self.ranges.head().end <= end);
+    self.ranges[0].end = end;
   }
 }

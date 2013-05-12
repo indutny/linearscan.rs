@@ -23,16 +23,26 @@ impl<K> LivenessHelper for Graph<K> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
       let instructions = copy self.get_block(*block).instructions;
+      let block_start = self.get_instr(*instructions.head()).flat_id;
+      let block_end = self.get_instr(*instructions.last()).flat_id;
 
       for instructions.each() |instr| {
+        let flat_id = self.get_instr(*instr).flat_id;
         let output = self.get_instr(*instr).output;
         let inputs = copy self.get_instr(*instr).inputs;
 
-        let block = self.get_block(*block);
+        self.get_block(*block).live_gen.insert(output);
+        self.get_interval(output).add_range(flat_id, block_end);
 
-        block.live_gen.insert(output);
         for inputs.each() |input| {
-          block.live_kill.insert(*input);
+          // Interval is live for the part of the block
+          if self.get_block(*block).live_gen.contains(input) {
+            self.get_interval(*input).extend_range(flat_id);
+          } else {
+            // Interval is live from the start of the block
+            self.get_interval(*input).add_range(block_start, flat_id);
+          }
+          self.get_block(*block).live_kill.insert(*input);
         };
       };
     };
