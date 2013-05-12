@@ -5,7 +5,10 @@ pub trait Liveness {
 }
 
 trait LivenessHelper {
+  // Build live_gen, live_kill
   fn build_local(&mut self);
+
+  // Build live_in, live_out
   fn build_global(&mut self);
 }
 

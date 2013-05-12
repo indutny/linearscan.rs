@@ -26,13 +26,23 @@ pub struct Block<K> {
   instructions: ~[InstrId],
   successors: ~[BlockId],
   predecessors: ~[BlockId],
+
+  // Fields for flattener
   loop_index: uint,
   loop_depth: uint,
+
+  // Fields for liveness analysis
+  live_gen: ~SmallIntMap<IntervalId>,
+  live_kill: ~SmallIntMap<IntervalId>,
+  live_in: ~SmallIntMap<IntervalId>,
+  live_out: ~SmallIntMap<IntervalId>,
+
   ended: bool
 }
 
 pub struct Instruction<K> {
   id: InstrId,
+  flat_id: InstrId,
   kind: InstrKind<K>,
   output: IntervalId,
   inputs: ~[IntervalId]
@@ -104,6 +114,10 @@ pub impl<K> Graph<K> {
     self.blocks.find_mut(&id).unwrap()
   }
 
+  fn get_instr<'r>(&'r mut self, id: InstrId) -> &'r mut ~Instruction<K> {
+    self.instructions.find_mut(&id).unwrap()
+  }
+
   #[inline(always)]
   priv fn block_id(&mut self) -> BlockId {
     let r = self.block_id;
@@ -114,7 +128,7 @@ pub impl<K> Graph<K> {
   #[inline(always)]
   priv fn instr_id(&mut self) -> InstrId {
     let r = self.instr_id;
-    self.instr_id += 2;
+    self.instr_id += 1;
     return r;
   }
 
@@ -172,6 +186,10 @@ pub impl<K> Block<K> {
       predecessors: ~[],
       loop_index: 0,
       loop_depth: 0,
+      live_gen: ~SmallIntMap::new(),
+      live_kill: ~SmallIntMap::new(),
+      live_in: ~SmallIntMap::new(),
+      live_out: ~SmallIntMap::new(),
       ended: false
     }
   }
@@ -192,6 +210,7 @@ pub impl<K> Instruction<K> {
   fn new(graph: &mut Graph<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
     let r = Instruction {
       id: graph.instr_id(),
+      flat_id: 0,
       kind: kind,
       output: Interval::new(graph),
       inputs: do vec::map(args) |id| {

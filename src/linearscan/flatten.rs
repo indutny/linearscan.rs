@@ -138,6 +138,15 @@ impl<K> Flatten for Graph<K> {
       }
     }
 
+    let mut instr_id = 0;
+    for result.each() |block| {
+      let instructions = copy self.get_block(*block).instructions;
+      for instructions.each() |instr| {
+        self.get_instr(*instr).flat_id = instr_id;
+        instr_id += 2;
+      };
+    };
+
     return result;
   }
 }
