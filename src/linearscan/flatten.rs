@@ -141,12 +141,34 @@ impl<K: KindHelper> Flatten for Graph<K> {
 
     // Assign flat ids to every instruction
     let mut instr_id = 0;
+    let mut global_list = ~[];
     for result.each() |block| {
-      let instructions = copy self.get_block(block).instructions;
-      for instructions.each() |instr| {
-        self.get_instr(instr).flat_id = instr_id;
+      let list = copy self.get_block(block).instructions;
+      let mut new_list = ~[];
+
+      for list.each() |id| {
+        // Pop each instruction from map
+        let mut instr = self.instructions.pop(id).unwrap();
+        // And update its id
+        instr.id = instr_id;
+
+        // Construct new block instructions list and insert instruction into new map
+        new_list.push(instr.id);
+        global_list.push(instr);
         instr_id += 2;
       }
+
+      // Replace block's instruction list
+      self.get_block(block).instructions = new_list;
+    }
+
+    // Remove all other instructions
+    self.instructions.clear();
+
+    // Replace graph's instruction map
+    while global_list.len() > 0 {
+      let instr = global_list.pop();
+      self.instructions.insert(instr.id, instr);
     }
 
     return result;

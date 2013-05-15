@@ -43,7 +43,6 @@ pub struct Block<K> {
 
 pub struct Instruction<K> {
   id: InstrId,
-  flat_id: InstrId,
   block: BlockId,
   kind: InstrKind<K>,
   output: IntervalId,
@@ -237,7 +236,7 @@ pub impl<K: KindHelper> Instruction<K> {
 
     let inputs = do vec::mapi(args) |i, input_id| {
       let output = b.graph.instructions.get(input_id).output;
-      b.graph.get_interval(&output).add_use(kind.use_kind(i), id);
+      b.graph.get_interval(&output);
       output
     };
 
@@ -248,7 +247,6 @@ pub impl<K: KindHelper> Instruction<K> {
 
     let r = Instruction {
       id: id,
-      flat_id: 0,
       block: b.block,
       kind: kind,
       output: Interval::new(b.graph),
