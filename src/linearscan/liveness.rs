@@ -12,7 +12,7 @@ trait LivenessHelper {
   // Build live_in, live_out
   fn build_global(&mut self, blocks: &[BlockId]);
 
-  // Create ranges for every interval
+  // Build live ranges
   fn build_ranges(&mut self, blocks: &[BlockId]);
 }
 
@@ -75,17 +75,5 @@ impl<K: KindHelper> LivenessHelper for Graph<K> {
   }
 
   fn build_ranges(&mut self, blocks: &[BlockId]) {
-    for blocks.each() |id| {
-      let instructions = copy self.get_block(id).instructions;
-
-      for instructions.each() |instr| {
-        let output = self.get_instr(instr).output;
-        let inputs = copy self.get_instr(instr).inputs;
-
-        // If output outlives the block
-        if self.get_block(id).live_out.contains(&output) {
-        }
-      }
-    }
   }
 }

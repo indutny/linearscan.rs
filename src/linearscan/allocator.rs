@@ -13,8 +13,10 @@ pub trait Allocator {
 
 impl<K: KindHelper> Allocator for Graph<K> {
   pub fn allocate(&mut self, config: Config) {
+    // Get flat list of blocks
     let list = self.flatten();
+
+    // Build live_in/live_out
     self.build_liveranges(list);
-    io::println(fmt!("%?", list));
   }
 }

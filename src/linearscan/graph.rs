@@ -47,7 +47,8 @@ pub struct Instruction<K> {
   block: BlockId,
   kind: InstrKind<K>,
   output: IntervalId,
-  inputs: ~[IntervalId]
+  inputs: ~[IntervalId],
+  temporary: ~[IntervalId]
 }
 
 // Abstraction to allow having user-specified instruction types
@@ -240,13 +241,19 @@ pub impl<K: KindHelper> Instruction<K> {
       output
     };
 
+    let mut temporary = ~[];
+    for uint::range(0, kind.tmp_count()) |i| {
+      temporary.push(Interval::new(b.graph));
+    }
+
     let r = Instruction {
       id: id,
       flat_id: 0,
       block: b.block,
       kind: kind,
       output: Interval::new(b.graph),
-      inputs: inputs
+      inputs: inputs,
+      temporary: temporary
     };
     b.graph.instructions.insert(r.id, ~r);
     return id;
