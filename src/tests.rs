@@ -1,6 +1,7 @@
 extern mod std;
 
-use linearscan::{Allocator, Config, Graph, KindHelper, UseKind, UseAny};
+use linearscan::{Allocator, Config, Graph, KindHelper,
+                 UseKind, UseAny, UseRegister};
 mod linearscan;
 
 #[deriving(Eq)]
@@ -25,6 +26,10 @@ impl KindHelper for Kind {
 
   fn use_kind(&self, _: uint) -> UseKind {
     UseAny
+  }
+
+  fn result_kind(&self) -> Option<UseKind> {
+    Some(UseRegister)
   }
 }
 

@@ -22,7 +22,7 @@ trait FlattenHelper {
   fn flatten_assign_indexes(&mut self);
 }
 
-impl<K: KindHelper> FlattenHelper for Graph<K> {
+impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
     let mut queue = ~[self.root];
     let mut visited = ~BitvSet::new();
@@ -85,7 +85,7 @@ impl<K: KindHelper> FlattenHelper for Graph<K> {
   }
 }
 
-impl<K: KindHelper> Flatten for Graph<K> {
+impl<K: KindHelper+Copy> Flatten for Graph<K> {
   fn flatten(&mut self) -> ~[BlockId] {
     let mut queue = ~[self.root];
     let mut result = ~[];
@@ -152,7 +152,8 @@ impl<K: KindHelper> Flatten for Graph<K> {
         // And update its id
         instr.id = instr_id;
 
-        // Construct new block instructions list and insert instruction into new map
+        // Construct new block instructions list and insert instruction into
+        // new map
         new_list.push(instr.id);
         global_list.push(instr);
         instr_id += 2;

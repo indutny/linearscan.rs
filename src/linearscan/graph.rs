@@ -93,9 +93,10 @@ pub trait KindHelper {
   fn is_call(&self) -> bool;
   fn tmp_count(&self) -> uint;
   fn use_kind(&self, i: uint) -> UseKind;
+  fn result_kind(&self) -> Option<UseKind>;
 }
 
-pub impl<K: KindHelper> Graph<K> {
+pub impl<K: KindHelper+Copy> Graph<K> {
   fn new() -> Graph<K> {
     Graph {
       root: 0,
@@ -166,7 +167,7 @@ pub impl<K: KindHelper> Graph<K> {
   }
 }
 
-pub impl<'self, K: KindHelper> BlockBuilder<'self, K> {
+pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = Instruction::new(self, User(kind), args);
 
@@ -203,7 +204,7 @@ pub impl<'self, K: KindHelper> BlockBuilder<'self, K> {
   }
 }
 
-pub impl<K: KindHelper> Block<K> {
+pub impl<K: KindHelper+Copy> Block<K> {
   fn new(graph: &mut Graph<K>) -> Block<K> {
     Block {
       id: graph.block_id(),
@@ -232,8 +233,10 @@ pub impl<K: KindHelper> Block<K> {
   }
 }
 
-pub impl<K: KindHelper> Instruction<K> {
-  fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
+pub impl<K: KindHelper+Copy> Instruction<K> {
+  fn new(b: &mut BlockBuilder<K>,
+         kind: InstrKind<K>,
+         args: ~[InstrId]) -> InstrId {
     let id = b.graph.instr_id();
 
     let inputs = do vec::map(args) |input_id| {
@@ -261,7 +264,7 @@ pub impl<K: KindHelper> Instruction<K> {
 }
 
 pub impl Interval {
-  fn new<K: KindHelper>(graph: &mut Graph<K>) -> IntervalId {
+  fn new<K: KindHelper+Copy>(graph: &mut Graph<K>) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: Virtual,
@@ -276,20 +279,20 @@ pub impl Interval {
   }
 
   fn add_range(&mut self, start: InstrId, end: InstrId) {
-    assert!(self.ranges.len() == 0 || self.ranges.last().end <= start);
+    assert!(self.ranges.len() == 0 || self.ranges.head().start >= end);
 
     // Extend last range
-    if self.ranges.len() > 0 && self.ranges.last().end == start {
-      self.ranges[self.ranges.len() - 1].end = end;
+    if self.ranges.len() > 0 && self.ranges.head().start == end {
+      self.ranges[0].start = start;
     } else {
       // Insert new range
-      self.ranges.push(LiveRange { start: start, end: end });
+      self.ranges.unshift(LiveRange { start: start, end: end });
     }
   }
 
-  fn extend_range(&mut self, end: InstrId) {
-    assert!(self.ranges.len() != 0 && self.ranges.head().end <= end);
-    self.ranges[0].end = end;
+  fn first_range<'r>(&'r mut self) -> &'r mut LiveRange {
+    assert!(self.ranges.len() != 0);
+    return &mut self.ranges[0];
   }
 
   fn add_use(&mut self, kind: UseKind, pos: InstrId) {
@@ -297,7 +300,7 @@ pub impl Interval {
   }
 }
 
-impl<K: KindHelper> KindHelper for InstrKind<K> {
+impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
   fn is_call(&self) -> bool {
     match self {
       &User(ref k) => k.is_call(),
@@ -318,11 +321,20 @@ impl<K: KindHelper> KindHelper for InstrKind<K> {
       &Move => UseAny
     }
   }
+
+  fn result_kind(&self) -> Option<UseKind> {
+    match self {
+      &User(ref k) => k.result_kind(),
+      &Move => None
+    }
+  }
 }
 
 impl Eq for LiveRange {
   #[inline(always)]
-  fn eq(&self, other: &LiveRange) -> bool { self.start == other.start && self.end == other.end }
+  fn eq(&self, other: &LiveRange) -> bool {
+    self.start == other.start && self.end == other.end
+  }
 
   #[inline(always)]
   fn ne(&self, other: &LiveRange) -> bool { !self.eq(other) }

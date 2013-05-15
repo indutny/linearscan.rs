@@ -1,4 +1,4 @@
-use linearscan::graph::{Graph, BlockId, KindHelper};
+use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister};
 use std::bitv::BitvSet;
 
 pub trait Liveness {
@@ -16,7 +16,7 @@ trait LivenessHelper {
   fn build_ranges(&mut self, blocks: &[BlockId]);
 }
 
-impl<K: KindHelper> Liveness for Graph<K> {
+impl<K: KindHelper+Copy> Liveness for Graph<K> {
   fn build_liveranges(&mut self, blocks: &[BlockId]) {
     self.build_local(blocks);
     self.build_global(blocks);
@@ -24,7 +24,7 @@ impl<K: KindHelper> Liveness for Graph<K> {
   }
 }
 
-impl<K: KindHelper> LivenessHelper for Graph<K> {
+impl<K: KindHelper+Copy> LivenessHelper for Graph<K> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
       let instructions = copy self.get_block(block).instructions;
@@ -62,7 +62,9 @@ impl<K: KindHelper> LivenessHelper for Graph<K> {
           change = true;
         }
 
-        // Propagate union(diff(block.live_out, block.live_kill), block.live_gen) to block.live_in
+        // Propagate:
+        // `union(diff(block.live_out, block.live_kill), block.live_gen)`
+        // to block.live_in
         let mut old = copy self.get_block(block).live_in;
         old.difference_with(self.get_block(block).live_kill);
         old.union_with(self.get_block(block).live_gen);
@@ -75,5 +77,56 @@ impl<K: KindHelper> LivenessHelper for Graph<K> {
   }
 
   fn build_ranges(&mut self, blocks: &[BlockId]) {
+    let physical = copy self.physical;
+    for blocks.each_reverse() |block_id| {
+      let instructions = copy self.get_block(block_id).instructions;
+      let live_out = copy self.get_block(block_id).live_out;
+      let block_from = *instructions.head();
+      let block_to = instructions.last() + 2;
+
+      // Assume that each live_out interval lives for the whole time of block
+      // NOTE: we'll shorten it later if definition of this interval appears to
+      // be in this block
+      for live_out.each() |int_id| {
+        self.get_interval(int_id).add_range(block_from, block_to);
+      }
+
+      for instructions.each_reverse() |instr_id| {
+        let instr: ~Instruction<K> = copy *self.instructions.get(instr_id);
+
+        // Call instructions should swap out all used registers into stack slots
+        if instr.kind.is_call() {
+          for physical.each() |reg| {
+            self.get_interval(reg).add_range(*instr_id, *instr_id + 1);
+          }
+        }
+
+        // Process output
+        if self.get_interval(&instr.output).ranges.len() != 0  {
+          // Shorten range if output outlives block, or is used anywhere
+          self.get_interval(&instr.output).first_range().start = *instr_id;
+        } else {
+          // Add short range otherwise
+          self.get_interval(&instr.output).add_range(*instr_id, *instr_id + 1);
+        }
+        match instr.kind.result_kind() {
+          Some(kind) => self.get_interval(&instr.output).add_use(kind,
+                                                                 *instr_id),
+          _ => ()
+        }
+
+        // Process temporary
+        for instr.temporary.each() |tmp| {
+          self.get_interval(tmp).add_range(*instr_id, *instr_id + 1);
+          self.get_interval(tmp).add_use(UseRegister, *instr_id);
+        }
+
+        // Process inputs
+        for instr.inputs.eachi() |i, input| {
+          self.get_interval(input).add_range(block_from, *instr_id);
+          self.get_interval(input).add_use(instr.kind.use_kind(i), *instr_id);
+        }
+      }
+    }
   }
 }

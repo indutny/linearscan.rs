@@ -1,5 +1,5 @@
 RUSTC ?= rustc
-RUSTFLAGS ?= -O
+RUSTFLAGS ?=
 
 TEST_BINARY ?= ./run-tests
 
