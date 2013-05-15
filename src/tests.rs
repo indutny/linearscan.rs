@@ -23,7 +23,7 @@ impl KindHelper for Kind {
     }
   }
 
-  fn use_kind(&self, i: uint) -> UseKind {
+  fn use_kind(&self, _: uint) -> UseKind {
     UseAny
   }
 }

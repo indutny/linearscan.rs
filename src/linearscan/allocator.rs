@@ -1,4 +1,4 @@
-use linearscan::graph::{Graph, KindHelper};
+use linearscan::graph::{Graph, KindHelper, Interval};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 
@@ -13,6 +13,12 @@ pub trait Allocator {
 
 impl<K: KindHelper> Allocator for Graph<K> {
   pub fn allocate(&mut self, config: Config) {
+    // Create physical fixed intervals
+    for uint::range(0, config.register_count) |_| {
+      let interval = Interval::new(self);
+      self.physical.push(interval);
+    }
+
     // Get flat list of blocks
     let list = self.flatten();
 

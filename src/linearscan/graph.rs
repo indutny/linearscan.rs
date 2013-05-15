@@ -14,7 +14,8 @@ pub struct Graph<K> {
   interval_id: IntervalId,
   intervals: ~SmallIntMap<~Interval>,
   blocks: ~SmallIntMap<~Block<K> >,
-  instructions: ~SmallIntMap<~Instruction<K> >
+  instructions: ~SmallIntMap<~Instruction<K> >,
+  physical: ~[IntervalId]
 }
 
 pub struct BlockBuilder<'self, K> {
@@ -103,7 +104,8 @@ pub impl<K: KindHelper> Graph<K> {
       interval_id: 0,
       intervals: ~SmallIntMap::new(),
       blocks: ~SmallIntMap::new(),
-      instructions: ~SmallIntMap::new()
+      instructions: ~SmallIntMap::new(),
+      physical: ~[]
     }
   }
 
@@ -234,14 +236,14 @@ pub impl<K: KindHelper> Instruction<K> {
   fn new(b: &mut BlockBuilder<K>, kind: InstrKind<K>, args: ~[InstrId]) -> InstrId {
     let id = b.graph.instr_id();
 
-    let inputs = do vec::mapi(args) |i, input_id| {
+    let inputs = do vec::map(args) |input_id| {
       let output = b.graph.instructions.get(input_id).output;
       b.graph.get_interval(&output);
       output
     };
 
     let mut temporary = ~[];
-    for uint::range(0, kind.tmp_count()) |i| {
+    for uint::range(0, kind.tmp_count()) |_| {
       temporary.push(Interval::new(b.graph));
     }
 
