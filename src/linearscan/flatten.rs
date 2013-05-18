@@ -20,6 +20,10 @@ trait FlattenHelper {
 
   // Assign loop_index/loop_depth to each block
   fn flatten_assign_indexes(&mut self);
+
+  // Assign new ids to blocks and instructions
+  fn flatten_reindex_blocks(&mut self, list: &[BlockId]);
+  fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
 }
 
 impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
@@ -83,6 +87,72 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
       loop_index += 1;
     }
   }
+
+  fn flatten_reindex_blocks(&mut self, list: &[BlockId]) {
+    let mut block_id = 0;
+    let mut queue = ~[];
+    for list.each() |id| {
+      let mut block = self.blocks.pop(id).unwrap();
+
+      // Update root id
+      if block.id == self.root {
+        self.root = block_id;
+      }
+
+      block.id = block_id;
+      block_id += 1;
+
+      // Update block id in it's instructions
+      for block.instructions.each() |instr_id| {
+        self.get_instr(instr_id).block = block.id;
+      }
+
+      queue.push(block);
+    }
+
+    // Remove all other instructions
+    self.blocks.clear();
+
+    // Insert them again
+    while queue.len() > 0 {
+      let block = queue.pop();
+      self.blocks.insert(block.id, block);
+    }
+  }
+
+  fn flatten_reindex_instructions(&mut self, list: &[BlockId]) {
+    let mut instr_id = 0;
+    let mut queue = ~[];
+    for list.each() |block| {
+      let list = copy self.get_block(block).instructions;
+      let mut new_list = ~[];
+
+      for list.each() |id| {
+        // Pop each instruction from map
+        let mut instr = self.instructions.pop(id).unwrap();
+        // And update its id
+        instr.id = instr_id;
+
+        // Construct new block instructions list and insert instruction into
+        // new map
+        new_list.push(instr.id);
+        queue.push(instr);
+        instr_id += 2;
+      }
+
+      // Replace block's instruction list
+      self.get_block(block).instructions = new_list;
+    }
+
+    // Remove all other instructions
+    self.instructions.clear();
+
+    // Replace graph's instruction map
+    while queue.len() > 0 {
+      let instr = queue.pop();
+      self.instructions.insert(instr.id, instr);
+    }
+  }
 }
 
 impl<K: KindHelper+Copy> Flatten for Graph<K> {
@@ -139,38 +209,11 @@ impl<K: KindHelper+Copy> Flatten for Graph<K> {
       }
     }
 
+    // Assign flat ids to every block
+    self.flatten_reindex_blocks(result);
+
     // Assign flat ids to every instruction
-    let mut instr_id = 0;
-    let mut global_list = ~[];
-    for result.each() |block| {
-      let list = copy self.get_block(block).instructions;
-      let mut new_list = ~[];
-
-      for list.each() |id| {
-        // Pop each instruction from map
-        let mut instr = self.instructions.pop(id).unwrap();
-        // And update its id
-        instr.id = instr_id;
-
-        // Construct new block instructions list and insert instruction into
-        // new map
-        new_list.push(instr.id);
-        global_list.push(instr);
-        instr_id += 2;
-      }
-
-      // Replace block's instruction list
-      self.get_block(block).instructions = new_list;
-    }
-
-    // Remove all other instructions
-    self.instructions.clear();
-
-    // Replace graph's instruction map
-    while global_list.len() > 0 {
-      let instr = global_list.pop();
-      self.instructions.insert(instr.id, instr);
-    }
+    self.flatten_reindex_instructions(result);
 
     return result;
   }

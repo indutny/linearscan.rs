@@ -30,7 +30,11 @@ impl KindHelper for Kind {
   }
 
   fn result_kind(&self) -> Option<UseKind> {
-    Some(UseRegister)
+    match self {
+      &Goto => None,
+      &Return => None,
+      _ => Some(UseRegister)
+    }
   }
 }
 
