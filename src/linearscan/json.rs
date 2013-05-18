@@ -1,4 +1,4 @@
-use std::json::{ToJson, Json, Object, List, String, Number, Null};
+use std::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
 use core::hashmap::HashMap;
 use linearscan::graph::{Graph, Block, Interval, LiveRange,
                         Use, UseAny, UseRegister, UseFixed,
@@ -100,7 +100,13 @@ impl<K: KindHelper+Copy> JsonHelper for Graph<K> {
     let mut result = ~[];
 
     for self.intervals.each() |_, interval| {
-      result.push(interval.to_json());
+      let mut obj: ~Object = match interval.to_json() {
+        Object(obj) => obj,
+        _ => fail!("Unexpected interval JSON type")
+      };
+
+      obj.insert(~"physical", Boolean(self.physical.contains(&interval.id)));
+      result.push(Object(obj));
     }
 
     return List(result);
