@@ -9,6 +9,9 @@ mod flatten;
 #[path="linearscan/liveness.rs"]
 mod liveness;
 
+#[path="linearscan/json.rs"]
+mod json;
+
 #[path="linearscan/allocator.rs"]
 mod allocator;
 

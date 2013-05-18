@@ -2,6 +2,7 @@ extern mod std;
 
 use linearscan::{Allocator, Config, Graph, KindHelper,
                  UseKind, UseAny, UseRegister};
+use std::json::ToJson;
 mod linearscan;
 
 #[deriving(Eq)]
@@ -39,6 +40,7 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
   body(&mut *g);
 
   g.allocate(Config { register_count: 4 });
+  io::println(g.to_json().to_str());
 }
 
 #[test]
