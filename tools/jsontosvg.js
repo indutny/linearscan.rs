@@ -233,7 +233,7 @@ Converter.prototype.drawAnnotation = function drawAnnotation() {
     'range-physical': 'Physical register range',
     'range-normal': 'Normal range',
     'use-any': 'Any use',
-    'use-register': 'Register use',
+    'use-reg': 'Register use',
     'use-fixed': 'Use of fixed register',
     'highlight-output': 'Instruction\'s output',
     'highlight-input': 'Instruction\'s input',
