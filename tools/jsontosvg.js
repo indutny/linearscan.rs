@@ -159,7 +159,7 @@ Converter.prototype.drawStyles = function drawStyles() {
     .range-physical { fill: #FD6218; }
     .range-normal { fill: #FBA42B; }
     .use-any { fill: #F6E575; }
-    .use-register { fill: #315B8F; }
+    .use-reg { fill: #315B8F; }
     .use-fixed { fill: #FD6210; }
     .highlight-interval { fill: #16DDD7; }
     .highlight-output { fill: #A40B04; }
@@ -455,7 +455,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
       y: y,
       width: this.use.width,
       height: this.interval.height - this.interval.paddingY,
-      'class': 'use-any'
+      'class': 'use-' + use.kind.type
     });
   }, this);
 };
