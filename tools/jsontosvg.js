@@ -2,21 +2,6 @@ function Converter(options) {
   this.input = options.input || process.stdin;
   this.output = options.output || process.stdout;
 
-  this.colors = {
-    'default': 'black',
-    'arrow': 'rgba(0,0,0,0.6)',
-    'highlight:interval': '#16DDD7',
-    'highlight:output': '#A40B04',
-    'highlight:input': '#0CF471',
-    'highlight:tmp': '#601D61',
-    'block:fill': '#4CBFCB',
-    'interval:empty': '#A4EEE8',
-    'interval:physical': '#FD6218',
-    'interval:normal': '#FBA42B',
-    'use:any': '#F6E575',
-    'use:register': '#BCDD70',
-    'use:fixed': '#FD6218'
-  };
   this.offset = {
     top: 32,
     left: 8
@@ -88,10 +73,6 @@ Converter.prototype.start = function start(data) {
   }, this.draw.bind(this));
 };
 
-Converter.prototype.color = function color(name) {
-  return this.colors[name] || this.colors['default'];
-};
-
 Converter.prototype.getX = function getX(x) {
   return this.offset.left + x;
 };
@@ -108,7 +89,7 @@ Converter.prototype.draw = function draw() {
       id: 'arrow',
       refX: 0,
       refY: 2,
-      fill: this.color('arrow'),
+      'class': 'arrow-mark',
       markerUnits: 'strokeWidth',
       markerWidth: 6,
       markerHeight: 6,
@@ -118,14 +99,28 @@ Converter.prototype.draw = function draw() {
     });
   });
 
-  this.tag('style', '@font-face {' +
-  '  font-family: "Raleway";' +
-  '  font-style: normal;' +
-  '  font-weight: 400;' +
-  '  src: local("Raleway"), ' +
-  'url(http://themes.googleusercontent.com/static/fonts/raleway/' +
-  'v6/cIFypx4yrWPDz3zOxk7hIQLUuEpTyoUstqEm5AMlJo4.woff) format("woff");' +
-  '}');
+  this.tag('style', function() {/*<![CDATA[
+    @font-face {
+      font-family: "Raleway";
+      font-style: normal;
+      font-weight: 400;
+      src: local("Raleway"),
+      url(http://themes.googleusercontent.com/static/fonts/raleway/v6/cIFypx4yrWPDz3zOxk7hIQLUuEpTyoUstqEm5AMlJo4.woff) format("woff");
+    }
+    .arrow { stroke: rgba(0,0,0,0.6); fill: transparent; }
+    .arrow-mark { fill: rgba(0,0,0,0.6); }
+    .block-fill { fill: #4CBFCB; }
+    .interval-empty { fill: #A4EEE8; }
+    .interval-physical { fill: #FD6218; }
+    .interval-normal { fill: #FBA42B; }
+    .use-any { fill: #F6E575; }
+    .use-register { fill: #BCDD70; }
+    .use-fixed { fill: #FD621; }
+    .highlight-interval { fill: #16DDD7; }
+    .highlight-output { fill: #A40B04; }
+    .highlight-input { fill: #0CF471; }
+    .highlight-tmp { fill: #601D61; }
+  ]]>*/}.toString().replace(/^function\s*\(\)\s*{\/\*|\*\/}$/g, ''));
 
   this.tag('text', {
     id: 'hint',
@@ -153,11 +148,11 @@ Converter.prototype.draw = function draw() {
       );
     }
     function highlight(className, color) {
+      console.log(className);
       each(className, function(i) {
-        var fill = i.style.fill;
-        i.style.fill = color;
+        i.classList.add('highlight-' + color);
         highlighted.push(function() {
-          i.style.fill = fill;
+          i.classList.remove('highlight-' + color);
         });
       });
     }
@@ -169,7 +164,7 @@ Converter.prototype.draw = function draw() {
       }
     }
     function h(what, color, noclear) {
-      if (!color) color = __interval__;
+      if (!color) color = 'interval';
       if (!noclear) clear();
 
       // Highlight row
@@ -185,13 +180,13 @@ Converter.prototype.draw = function draw() {
         if (instr) {
           if (instr.output !== null) {
             hintText += interval_to_str(instr.output) + '=';
-            h({ r: instr.output }, __output__, true);
+            h({ r: instr.output }, 'output', true);
           }
           hintText += instr.kind + '(';
           instr.inputs.forEach(function(input, i) {
             hintText += interval_to_str(input);
             if (i !== instr.inputs.length - 1) hintText += ', ';
-            h({ r: input }, __input__, true);
+            h({ r: input }, 'input', true);
           });
           hintText += ')';
 
@@ -200,7 +195,7 @@ Converter.prototype.draw = function draw() {
             instr.temporary.forEach(function(tmp, i) {
               hintText += interval_to_str(tmp);
               if (i !== instr.temporary.length - 1) hintText += ', ';
-              h({ r: tmp }, __tmp__, true);
+              h({ r: tmp }, 'tmp', true);
             });
           }
         } else {
@@ -219,11 +214,7 @@ Converter.prototype.draw = function draw() {
       }
       highlighted = [];
     }
-  }.toString().replace(/^function\s*\(\)\s*{|}$/g, '')
-              .replace(/__(\w+)+__/g, function(all, name) {
-                return JSON.stringify(self.color('highlight:' + name)) +
-                       '/*' + name + '*/';
-              }) + ']]>');
+  }.toString().replace(/^function\s*\(\)\s*{\n?|\n?}$/g, '') + ']]>');
 
   this.input.blocks.forEach(function(block) {
     this.drawBlock(block);
@@ -260,7 +251,7 @@ Converter.prototype.drawBlock = function drawBlock(block) {
     ry: this.block.r,
     width: rect.width,
     height: rect.height,
-    fill: this.color('block:fill')
+    'class': 'block-fill'
   });
 
   // Draw title
@@ -315,8 +306,7 @@ Converter.prototype.drawArrow = function drawArrow(from, to) {
   path.push('C', middle.x, middle.y, middle.x, middle.y, to.x, to.y);
   this.tag('path', {
     d: path.join(' '),
-    fill: 'transparent',
-    stroke: this.color('arrow'),
+    'class': 'arrow',
     'stroke-width': 2,
     'marker-end': 'url(#arrow)'
   });
@@ -329,14 +319,13 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
   this.input.blocks.forEach(function(block) {
     for (var c = block.start; c < block.end; c++) {
       this.tag('rect', {
-        'class': 'r-' + interval.id + ' c-' + c,
+        'class': 'r-' + interval.id + ' c-' + c + ' interval-empty',
         onmouseover: 'h({r:' + interval.id + ',c:' + c + '})',
         x: this.getX(c * this.interval.width),
         y: y,
         width: this.interval.width -
                (c === block.end - 1 ? this.interval.paddingX : 0),
-        height: this.interval.height - this.interval.paddingY,
-        fill: this.color('interval:empty')
+        height: this.interval.height - this.interval.paddingY
       });
     }
   }, this);
@@ -351,8 +340,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
         width: this.interval.width -
                (c === range.end - 1 ? this.interval.paddingX : 0),
         height: this.interval.height - this.interval.paddingY,
-        fill: this.color(interval.physical ? 'interval:physical' :
-                                             'interval:normal')
+        'class': interval.physical ? 'interval-physical' : 'interval-normal'
       });
     }
   }, this);
@@ -365,7 +353,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
       y: y,
       width: this.use.width,
       height: this.interval.height - this.interval.paddingY,
-      fill: this.color('use:any')
+      'class': 'use-any'
     });
   }, this);
 };
