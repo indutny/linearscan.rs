@@ -106,7 +106,9 @@ Converter.prototype.draw = function draw() {
   this.drawAnnotation();
   this.drawInstructions();
 
+  this.maxDepth = 0;
   this.input.blocks.forEach(function(block) {
+    this.maxDepth = Math.max(block.loop_depth, this.maxDepth);
     this.drawBlock(block);
   }, this);
 
@@ -123,7 +125,7 @@ Converter.prototype.drawStyles = function drawStyles() {
   this.tag('defs', function() {
     this.tag('marker', {
       id: 'arrow',
-      refX: 0,
+      refX: 2,
       refY: 2,
       'class': 'arrow-mark',
       markerUnits: 'strokeWidth',
@@ -370,16 +372,17 @@ Converter.prototype.drawArrows = function drawArrows(block) {
 
   block.successors.forEach(function(succ) {
     // Ignore consequent blocks
-    offset = cons = succ === block.id + 1 ? rect.height / 2 : 0;
+    var cons = succ === block.id + 1;
+    offset = cons ? rect.height / 2 : 0;
 
     var target = this.input.blocks[succ];
     var targetRect = this.getBlockRect(target);
     this.drawArrow({
-      x: rect.x + rect.width,
+      x: rect.x + (cons ? rect.width : rect.width / 2),
       y: rect.y + rect.height + this.block.r - offset,
       depth: block.loop_depth
     }, {
-      x: targetRect.x,
+      x: targetRect.x + (cons ? 0 : targetRect.width / 2),
       y: targetRect.y + targetRect.height + this.block.r - offset,
       depth: target.loop_depth
     });
@@ -388,24 +391,20 @@ Converter.prototype.drawArrows = function drawArrows(block) {
 
 Converter.prototype.drawArrow = function drawArrow(from, to) {
   var path = ['M', from.x, from.y];
-  var depth = Math.log(Math.E * (1 + Math.min(from.depth, to.depth)));
+  var depth = Math.log(Math.E *
+                       (this.maxDepth + 1 - Math.min(from.depth, to.depth)));
   var distance = Math.log(Math.abs(to.x - from.x - this.interval.paddingX) + 1);
 
-  // Account arrow width
-  if (to.x > from.x) {
-    to.x -= this.arrow.width;
-    if (from.x > to.x) from.x -= this.arrow.width;
-  } else {
-    to.x += this.arrow.width;
-    if (from.x < to.x) from.x += this.arrow.width;
-  }
-
-  var middle = {
-    x: (to.x + from.x) / 2,
+  var middle1 = {
+    x: from.x + (to.x - from.x) / 4,
+    y: (to.y + from.y) / 2 + 4 * depth * distance
+  };
+  var middle2 = {
+    x: from.x + 3 * (to.x - from.x) / 4,
     y: (to.y + from.y) / 2 + 4 * depth * distance
   };
 
-  path.push('C', middle.x, middle.y, middle.x, middle.y, to.x, to.y);
+  path.push('C', middle1.x, middle1.y, middle2.x, middle2.y, to.x, to.y);
   this.tag('path', {
     d: path.join(' '),
     'class': 'arrow',
