@@ -1,7 +1,7 @@
 use std::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
 use core::hashmap::HashMap;
 use linearscan::graph::{Graph, Block, Instruction, Interval, LiveRange,
-                        User, Move,
+                        User, Move, ToPhi, Phi,
                         Use, UseAny, UseRegister, UseFixed,
                         Value, Virtual, Register, Stack, KindHelper};
 
@@ -37,7 +37,9 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
     obj.insert(~"block", Number(self.block as float));
     obj.insert(~"kind", String(match self.kind {
       User(kind) => kind.to_str(),
-      Move => ~"~move"
+      Move => ~"~move",
+      ToPhi => ~"~to_phi",
+      Phi => ~"~phi"
     }));
     obj.insert(~"inputs", List(do self.inputs.map() |input| {
       Number((*input) as float)

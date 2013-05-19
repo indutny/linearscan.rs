@@ -57,7 +57,9 @@ pub struct Instruction<K> {
 #[deriving(ToStr)]
 pub enum InstrKind<K> {
   User(K),
-  Move
+  Move,
+  Phi,
+  ToPhi
 }
 
 pub struct Interval {
@@ -112,6 +114,13 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     }
   }
 
+  fn empty_block(&mut self) -> BlockId {
+    let block = ~Block::new(self);
+    let id = block.id;
+    self.blocks.insert(id, block);
+    return id;
+  }
+
   fn block(&mut self, body: &fn(b: &mut BlockBuilder<K>)) -> BlockId {
     let block = ~Block::new(self);
     let id = block.id;
@@ -121,6 +130,13 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     self.with_block(id, body);
 
     return id;
+  }
+
+  fn phi(&mut self) -> InstrId {
+    let res = Instruction::new(self, Phi, ~[]);
+    // Prevent adding phi to block
+    self.get_instr(&res).added = true;
+    return res;
   }
 
   fn with_block(&mut self, id: BlockId, body: &fn(b: &mut BlockBuilder<K>)) {
@@ -196,6 +212,18 @@ pub impl<'self, K: KindHelper+Copy+ToStr> BlockBuilder<'self, K> {
     self.graph.get_instr(&id).inputs.push(arg);
   }
 
+  fn to_phi(&mut self, input: InstrId, phi: InstrId) {
+    match self.graph.get_instr(&phi).kind {
+      Phi => (),
+      _ => fail!("Expected Phi argument")
+    };
+    let out = self.graph.get_instr(&phi).output.expect("Phi output");
+
+    let res = Instruction::new_empty(self.graph, ToPhi, ~[input]);
+    self.graph.get_instr(&res).output = Some(out);
+    self.add_existing(res);
+  }
+
   fn end(&mut self) {
     let block = self.graph.get_block(&self.block);
     assert!(!block.ended);
@@ -252,9 +280,9 @@ pub impl<K: KindHelper+Copy+ToStr> Block<K> {
 }
 
 pub impl<K: KindHelper+Copy+ToStr> Instruction<K> {
-  fn new(graph: &mut Graph<K>,
-         kind: InstrKind<K>,
-         args: ~[InstrId]) -> InstrId {
+  fn new_empty(graph: &mut Graph<K>,
+               kind: InstrKind<K>,
+               args: ~[InstrId]) -> InstrId {
     let id = graph.instr_id();
 
     let inputs = do vec::map(args) |input_id| {
@@ -269,22 +297,31 @@ pub impl<K: KindHelper+Copy+ToStr> Instruction<K> {
       temporary.push(Interval::new(graph));
     }
 
-    let output = match kind.result_kind() {
-      Some(_) => Some(Interval::new(graph)),
-      None => None
-    };
-
     let r = Instruction {
       id: id,
       block: 0,
       kind: kind,
-      output: output,
+      output: None,
       inputs: inputs,
       temporary: temporary,
       added: false
     };
     graph.instructions.insert(r.id, ~r);
     return id;
+  }
+
+  fn new(graph: &mut Graph<K>,
+         kind: InstrKind<K>,
+         args: ~[InstrId]) -> InstrId {
+
+    let output = match kind.result_kind() {
+      Some(_) => Some(Interval::new(graph)),
+      None => None
+    };
+
+    let instr = Instruction::new_empty(graph, kind, args);
+    graph.get_instr(&instr).output = output;
+    return instr;
   }
 }
 
@@ -329,28 +366,36 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn is_call(&self) -> bool {
     match self {
       &User(ref k) => k.is_call(),
-      &Move => false
+      &Move => false,
+      &ToPhi => false,
+      &Phi => false
     }
   }
 
   fn tmp_count(&self) -> uint {
     match self {
       &User(ref k) => k.tmp_count(),
-      &Move => 1
+      &Move => 1,
+      &Phi => 0,
+      &ToPhi => 0
     }
   }
 
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
       &User(ref k) => k.use_kind(i),
-      &Move => UseAny
+      &Move => UseAny,
+      &Phi => UseAny,
+      &ToPhi => UseAny
     }
   }
 
   fn result_kind(&self) -> Option<UseKind> {
     match self {
       &User(ref k) => k.result_kind(),
-      &Move => None
+      &Move => None,
+      &Phi => Some(UseAny),
+      &ToPhi => Some(UseAny)
     }
   }
 }

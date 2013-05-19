@@ -61,8 +61,8 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         }
 
         // Propagate succ.live_in to block.live_out
-        if !self.get_block(block).live_out.is_superset(tmp) {
-          self.get_block(block).live_out.union_with(tmp);
+        if self.get_block(block).live_out != tmp {
+          self.get_block(block).live_out = tmp;
           change = true;
         }
 

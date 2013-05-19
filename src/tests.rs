@@ -59,40 +59,38 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
 #[test]
 fn realword_example() {
   do graph_test() |g| {
-    let phi = g.new_instr(Phi, ~[]);
+    let phi = g.phi();
 
-    let start = do g.block() |b| {
+    let cond = g.empty_block();
+    let left = g.empty_block();
+    let right = g.empty_block();
+
+    do g.block() |b| {
       b.make_root();
 
       let zero = b.add(Zero, ~[]);
-      b.add_arg(phi, zero);
-    };
-
-    let left = do g.block() |b| {
-      let counter = b.add(Increment, ~[phi]);
-      b.add_arg(phi, counter);
+      b.to_phi(zero, phi);
       b.add(Goto, ~[]);
+      b.goto(cond);
     };
 
-    let right = do g.block() |b| {
-      b.add(PrintHello, ~[]);
-      b.add(Return, ~[]);
-      b.end();
-    };
-
-    let cond = do g.block() |b| {
-      b.add_existing(phi);
+    do g.with_block(cond) |b| {
       let ten = b.add(Ten, ~[]);
       b.add(BranchIfBigger, ~[phi, ten]);
       b.branch(left, right);
     };
 
     do g.with_block(left) |b| {
+      let counter = b.add(Increment, ~[phi]);
+      b.to_phi(counter, phi);
+      b.add(Goto, ~[]);
       b.goto(cond);
     };
 
-    do g.with_block(start) |b| {
-      b.goto(cond);
+    do g.with_block(right) |b| {
+      b.add(PrintHello, ~[]);
+      b.add(Return, ~[]);
+      b.end();
     };
   };
 }
