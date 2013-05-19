@@ -191,7 +191,7 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
         let successors = copy self.get_block(&cur).successors;
         match successors.len() {
           0 => (),
-          1 => queue.push(successors[0]),
+          1 => queue.unshift(successors[0]),
           2 => {
             let scores = do successors.map() |succ| {
               let block = self.get_block(succ);
@@ -212,10 +212,10 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
             };
 
             if scores[0].score >= scores[1].score {
-              queue.push(scores[0].block);
+              queue.unshift(scores[0].block);
               queue.push(scores[1].block);
             } else {
-              queue.push(scores[1].block);
+              queue.unshift(scores[1].block);
               queue.push(scores[0].block);
             }
           },

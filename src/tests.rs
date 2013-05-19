@@ -63,6 +63,7 @@ fn realword_example() {
 
     let cond = g.empty_block();
     let left = g.empty_block();
+    let after_left = g.empty_block();
     let right = g.empty_block();
 
     do g.block() |b| {
@@ -81,6 +82,12 @@ fn realword_example() {
     };
 
     do g.with_block(left) |b| {
+      b.add(PrintHello, ~[]);
+      b.add(Goto, ~[]);
+      b.goto(after_left);
+    };
+
+    do g.with_block(after_left) |b| {
       let counter = b.add(Increment, ~[phi]);
       b.to_phi(counter, phi);
       b.add(Goto, ~[]);
@@ -88,7 +95,6 @@ fn realword_example() {
     };
 
     do g.with_block(right) |b| {
-      b.add(PrintHello, ~[]);
       b.add(Return, ~[]);
       b.end();
     };

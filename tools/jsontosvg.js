@@ -308,28 +308,31 @@ Converter.prototype.drawInstructions = function drawInstructions() {
   Object.keys(this.input.instructions).map(function(key) {
     return parseInt(key, 10);
   }).forEach(function(key, i) {
+    var instr = this.input.instructions[key];
     var markerY = this.offset.top + this.annotation.height +
                   i * this.instruction.height;
+    var depthOffset = this.input.blocks[instr.block].loop_depth * 8;
+
     // Draw marker
     this.tag('rect', {
       'class': 'instruction-marker c-' + key,
-      x: this.offset.left,
+      x: this.offset.left + depthOffset,
       y: markerY,
       width: this.instruction.marker.width - this.instruction.marker.padding,
       height: this.instruction.height - this.instruction.marker.padding
     });
     this.tag('text', {
       'class': 'instruction-marker-text',
-      x: this.offset.left + 4,
+      x: this.offset.left + 4 + depthOffset,
       y: markerY + this.instruction.height / 2
     }, key);
 
     // Draw text
     this.tag('text', {
       'class': 'instruction-text',
-      x: this.offset.left + this.instruction.marker.width,
+      x: this.offset.left + this.instruction.marker.width + depthOffset,
       y: markerY + this.instruction.height / 2
-    }, stringify(this.input.instructions[key]));
+    }, stringify(instr));
   }, this);
 };
 
