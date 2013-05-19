@@ -52,7 +52,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
     while change {
       change = false;
 
-      for blocks.each() |block| {
+      for blocks.each_reverse() |block| {
         let successors = copy self.get_block(block).successors;
 
         let mut tmp = ~BitvSet::new();
