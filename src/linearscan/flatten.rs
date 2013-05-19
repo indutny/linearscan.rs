@@ -22,11 +22,11 @@ trait FlattenHelper {
   fn flatten_assign_indexes(&mut self);
 
   // Assign new ids to blocks and instructions
-  fn flatten_reindex_blocks(&mut self, list: &[BlockId]);
+  fn flatten_reindex_blocks(&mut self, list: &[BlockId]) -> ~[BlockId];
   fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
 }
 
-impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
+impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
     let mut queue = ~[self.root];
     let mut visited = ~BitvSet::new();
@@ -88,9 +88,11 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     }
   }
 
-  fn flatten_reindex_blocks(&mut self, list: &[BlockId]) {
+  fn flatten_reindex_blocks(&mut self, list: &[BlockId]) -> ~[BlockId] {
     let mut block_id = 0;
     let mut queue = ~[];
+    let mut result = ~[];
+
     for list.each() |id| {
       let mut block = self.blocks.pop(id).unwrap();
 
@@ -107,6 +109,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
         self.get_instr(instr_id).block = block.id;
       }
 
+      result.push(block.id);
       queue.push(block);
     }
 
@@ -118,6 +121,8 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
       let block = queue.pop();
       self.blocks.insert(block.id, block);
     }
+
+    return result;
   }
 
   fn flatten_reindex_instructions(&mut self, list: &[BlockId]) {
@@ -155,7 +160,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy> Flatten for Graph<K> {
+impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
   fn flatten(&mut self) -> ~[BlockId] {
     let mut queue = ~[self.root];
     let mut result = ~[];
@@ -210,7 +215,7 @@ impl<K: KindHelper+Copy> Flatten for Graph<K> {
     }
 
     // Assign flat ids to every block
-    self.flatten_reindex_blocks(result);
+    result = self.flatten_reindex_blocks(result);
 
     // Assign flat ids to every instruction
     self.flatten_reindex_instructions(result);

@@ -5,22 +5,29 @@ use linearscan::{Allocator, Config, Graph, KindHelper,
 use std::json::ToJson;
 mod linearscan;
 
-#[deriving(Eq)]
+#[deriving(Eq, ToStr)]
 enum Kind {
-  Action0,
-  Action1,
+  Phi,
+  Increment,
+  BranchIfBigger,
+  PrintHello,
+  Zero,
+  Ten,
   Goto,
   Return
 }
 
 impl KindHelper for Kind {
   fn is_call(&self) -> bool {
-    false
+    match self {
+      &PrintHello => true,
+      _ => false
+    }
   }
 
   fn tmp_count(&self) -> uint {
     match self {
-      &Action0 => 1,
+      &BranchIfBigger => 1,
       _ => 0
     }
   }
@@ -33,6 +40,8 @@ impl KindHelper for Kind {
     match self {
       &Goto => None,
       &Return => None,
+      &BranchIfBigger => None,
+      &PrintHello => None,
       _ => Some(UseRegister)
     }
   }
@@ -48,67 +57,36 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
 }
 
 #[test]
-fn one_block_graph() {
+fn realword_example() {
   do graph_test() |g| {
     do g.block() |b| {
       b.make_root();
 
-      let v = b.add(Action0, ~[]);
-      b.add(Action1, ~[v]);
-    };
-  };
-}
+      let counter1 = b.add(Zero, ~[]);
+      let mut counter2 = 0;
 
-#[test]
-fn loop_graph() {
-  do graph_test() |g| {
-    let b0 = do g.block() |b| {
-      b.make_root();
+      let left = do b.graph.block() |b| {
+        counter2 = b.add(Increment, ~[counter1]);
+        b.add(Goto, ~[]);
+      };
 
-      b.add(Goto, ~[]);
-    };
+      let right = do b.graph.block() |b| {
+        b.add(PrintHello, ~[]);
+        b.add(Return, ~[]);
+      };
 
-    let b1 = do g.block() |b| {
-      b.add(Goto, ~[]);
-      b.goto(b0);
-    };
+      let cond = do b.graph.block() |b| {
+        let phi = b.add(Phi, ~[counter1, counter2]);
+        let ten = b.add(Ten, ~[]);
+        b.add(BranchIfBigger, ~[phi, ten]);
+        b.branch(left, right);
+      };
 
-    do g.with_block(b0) |b| {
-      b.goto(b1);
-    }
-  };
-}
+      do b.graph.with_block(left) |b| {
+        b.goto(cond);
+      };
 
-#[test]
-fn nested_loops() {
-  do graph_test() |g| {
-    // 0 -> 1 -> 2 -> 0
-    // 1 -> 2 -> 1
-    // 1 -> (3)
-    let b0 = do g.block() |b| {
-      b.make_root();
-      b.add(Goto, ~[]);
-    };
-
-    let b1 = do g.block() |b| {
-      b.add(Goto, ~[]);
-    };
-
-    let b2 = do g.block() |b| {
-      b.add(Goto, ~[]);
-      b.branch(b0, b1);
-    };
-
-    let b3 = do g.block() |b| {
-      b.add(Return, ~[]);
-    };
-
-    do g.with_block(b0) |b| {
-      b.goto(b1);
-    };
-
-    do g.with_block(b1) |b| {
-      b.branch(b2, b3);
+      b.goto(cond);
     };
   };
 }

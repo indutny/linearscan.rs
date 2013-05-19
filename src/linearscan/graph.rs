@@ -53,6 +53,7 @@ pub struct Instruction<K> {
 
 // Abstraction to allow having user-specified instruction types
 // as well as internal movement instructions
+#[deriving(ToStr)]
 pub enum InstrKind<K> {
   User(K),
   Move
@@ -96,7 +97,7 @@ pub trait KindHelper {
   fn result_kind(&self) -> Option<UseKind>;
 }
 
-pub impl<K: KindHelper+Copy> Graph<K> {
+pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   fn new() -> Graph<K> {
     Graph {
       root: 0,
@@ -167,7 +168,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 }
 
-pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
+pub impl<'self, K: KindHelper+Copy+ToStr> BlockBuilder<'self, K> {
   fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = Instruction::new(self, User(kind), args);
 
@@ -204,7 +205,7 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   }
 }
 
-pub impl<K: KindHelper+Copy> Block<K> {
+pub impl<K: KindHelper+Copy+ToStr> Block<K> {
   fn new(graph: &mut Graph<K>) -> Block<K> {
     Block {
       id: graph.block_id(),
@@ -233,7 +234,7 @@ pub impl<K: KindHelper+Copy> Block<K> {
   }
 }
 
-pub impl<K: KindHelper+Copy> Instruction<K> {
+pub impl<K: KindHelper+Copy+ToStr> Instruction<K> {
   fn new(b: &mut BlockBuilder<K>,
          kind: InstrKind<K>,
          args: ~[InstrId]) -> InstrId {
@@ -264,7 +265,7 @@ pub impl<K: KindHelper+Copy> Instruction<K> {
 }
 
 pub impl Interval {
-  fn new<K: KindHelper+Copy>(graph: &mut Graph<K>) -> IntervalId {
+  fn new<K: KindHelper+Copy+ToStr>(graph: &mut Graph<K>) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: Virtual,
@@ -300,7 +301,7 @@ pub impl Interval {
   }
 }
 
-impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
+impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn is_call(&self) -> bool {
     match self {
       &User(ref k) => k.is_call(),

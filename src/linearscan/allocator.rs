@@ -11,7 +11,7 @@ pub trait Allocator {
   pub fn allocate(&mut self, config: Config);
 }
 
-impl<K: KindHelper+Copy> Allocator for Graph<K> {
+impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
   pub fn allocate(&mut self, config: Config) {
     // Create physical fixed intervals
     for uint::range(0, config.register_count) |_| {
