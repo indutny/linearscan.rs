@@ -46,9 +46,10 @@ pub struct Instruction<K> {
   id: InstrId,
   block: BlockId,
   kind: InstrKind<K>,
-  output: IntervalId,
+  output: Option<IntervalId>,
   inputs: ~[IntervalId],
-  temporary: ~[IntervalId]
+  temporary: ~[IntervalId],
+  added: bool
 }
 
 // Abstraction to allow having user-specified instruction types
@@ -130,6 +131,10 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     body(&mut b);
   }
 
+  fn new_instr(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
+    return Instruction::new(self, User(kind), args);
+  }
+
   fn set_root(&mut self, id: BlockId) {
     self.root = id;
   }
@@ -170,13 +175,25 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
 pub impl<'self, K: KindHelper+Copy+ToStr> BlockBuilder<'self, K> {
   fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
-    let instr_id = Instruction::new(self, User(kind), args);
+    let instr_id = self.graph.new_instr(kind, args);
+
+    self.add_existing(instr_id);
+
+    return instr_id;
+  }
+
+  fn add_existing(&mut self, instr_id: InstrId) {
+    assert!(!self.graph.get_instr(&instr_id).added);
+    self.graph.get_instr(&instr_id).added = true;
+    self.graph.get_instr(&instr_id).block = self.block;
 
     let block = self.graph.get_block(&self.block);
     assert!(!block.ended);
     block.instructions.push(instr_id);
+  }
 
-    return instr_id;
+  fn add_arg(&mut self, id: InstrId, arg: InstrId) {
+    self.graph.get_instr(&id).inputs.push(arg);
   }
 
   fn end(&mut self) {
@@ -235,31 +252,38 @@ pub impl<K: KindHelper+Copy+ToStr> Block<K> {
 }
 
 pub impl<K: KindHelper+Copy+ToStr> Instruction<K> {
-  fn new(b: &mut BlockBuilder<K>,
+  fn new(graph: &mut Graph<K>,
          kind: InstrKind<K>,
          args: ~[InstrId]) -> InstrId {
-    let id = b.graph.instr_id();
+    let id = graph.instr_id();
 
     let inputs = do vec::map(args) |input_id| {
-      let output = b.graph.instructions.get(input_id).output;
-      b.graph.get_interval(&output);
+      let output = graph.instructions.get(input_id).output
+                        .expect("Instruction should have output");
+      graph.get_interval(&output);
       output
     };
 
     let mut temporary = ~[];
     for uint::range(0, kind.tmp_count()) |_| {
-      temporary.push(Interval::new(b.graph));
+      temporary.push(Interval::new(graph));
     }
+
+    let output = match kind.result_kind() {
+      Some(_) => Some(Interval::new(graph)),
+      None => None
+    };
 
     let r = Instruction {
       id: id,
-      block: b.block,
+      block: 0,
       kind: kind,
-      output: Interval::new(b.graph),
+      output: output,
       inputs: inputs,
-      temporary: temporary
+      temporary: temporary,
+      added: false
     };
-    b.graph.instructions.insert(r.id, ~r);
+    graph.instructions.insert(r.id, ~r);
     return id;
   }
 }

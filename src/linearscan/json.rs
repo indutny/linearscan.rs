@@ -45,7 +45,10 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
     obj.insert(~"temporary", List(do self.temporary.map() |t| {
       Number((*t) as float)
     }));
-    obj.insert(~"output", Number(self.output as float));
+    obj.insert(~"output", match self.output {
+      Some(output) => Number(output as float),
+      None => Null
+    });
 
     return Object(obj);
   }

@@ -92,6 +92,7 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
     let mut block_id = 0;
     let mut queue = ~[];
     let mut result = ~[];
+    let mut mapping = ~SmallIntMap::new();
 
     for list.each() |id| {
       let mut block = self.blocks.pop(id).unwrap();
@@ -101,6 +102,7 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
         self.root = block_id;
       }
 
+      mapping.insert(block.id, block_id);
       block.id = block_id;
       block_id += 1;
 
@@ -118,7 +120,13 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
 
     // Insert them again
     while queue.len() > 0 {
-      let block = queue.pop();
+      let mut block = queue.pop();
+      block.successors = do block.successors.map() |succ| {
+        *mapping.get(succ)
+      };
+      block.predecessors = do block.predecessors.map() |pred| {
+        *mapping.get(pred)
+      };
       self.blocks.insert(block.id, block);
     }
 

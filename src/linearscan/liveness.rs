@@ -33,7 +33,11 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         let output = self.get_instr(instr).output;
         let inputs = copy self.get_instr(instr).inputs;
 
-        self.get_block(block).live_kill.insert(output);
+        match output {
+          Some(output) => self.get_block(block).live_kill.insert(output),
+          None => true
+        };
+
         for inputs.each() |input| {
           if !self.get_block(block).live_kill.contains(input) {
             self.get_block(block).live_gen.insert(*input);
@@ -102,17 +106,19 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         }
 
         // Process output
-        if self.get_interval(&instr.output).ranges.len() != 0  {
-          // Shorten range if output outlives block, or is used anywhere
-          self.get_interval(&instr.output).first_range().start = *instr_id;
-        } else {
-          // Add short range otherwise
-          self.get_interval(&instr.output).add_range(*instr_id, *instr_id + 1);
-        }
-        match instr.kind.result_kind() {
-          Some(kind) => self.get_interval(&instr.output).add_use(kind,
-                                                                 *instr_id),
-          _ => ()
+        match instr.output {
+          Some(output) => {
+            if self.get_interval(&output).ranges.len() != 0  {
+              // Shorten range if output outlives block, or is used anywhere
+              self.get_interval(&output).first_range().start = *instr_id;
+            } else {
+              // Add short range otherwise
+              self.get_interval(&output).add_range(*instr_id, *instr_id + 1);
+            }
+            let out_kind = instr.kind.result_kind().unwrap();
+            self.get_interval(&output).add_use(out_kind, *instr_id);
+          },
+          None => ()
         }
 
         // Process temporary
@@ -123,7 +129,9 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
 
         // Process inputs
         for instr.inputs.eachi() |i, input| {
-          self.get_interval(input).add_range(block_from, *instr_id);
+          if !live_out.contains(input) {
+            self.get_interval(input).add_range(block_from, *instr_id);
+          }
           self.get_interval(input).add_use(instr.kind.use_kind(i), *instr_id);
         }
       }
