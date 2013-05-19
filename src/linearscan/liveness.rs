@@ -69,7 +69,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         // Propagate:
         // `union(diff(block.live_out, block.live_kill), block.live_gen)`
         // to block.live_in
-        let mut old = copy self.get_block(block).live_in;
+        let mut old = copy self.get_block(block).live_out;
         old.difference_with(self.get_block(block).live_kill);
         old.union_with(self.get_block(block).live_gen);
         if old != self.get_block(block).live_in {
@@ -84,7 +84,6 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
     let physical = copy self.physical;
     for blocks.each_reverse() |block_id| {
       let instructions = copy self.get_block(block_id).instructions;
-      let live_in = copy self.get_block(block_id).live_in;
       let live_out = copy self.get_block(block_id).live_out;
       let block_from = *instructions.head();
       let block_to = instructions.last() + 2;
@@ -130,9 +129,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
 
         // Process inputs
         for instr.inputs.eachi() |i, input| {
-          if !live_out.contains(input) ||
-             live_in.contains(input) &&
-               self.get_interval(input).first_range().start > *instr_id {
+          if !live_out.contains(input) {
             self.get_interval(input).add_range(block_from, *instr_id);
           }
           self.get_interval(input).add_use(instr.kind.use_kind(i), *instr_id);
