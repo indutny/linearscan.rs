@@ -24,6 +24,7 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Block<K> {
     let end = *self.instructions.last() + 2;
     obj.insert(~"start", Number(start as float));
     obj.insert(~"end", Number(end as float));
+    obj.insert(~"loop_depth", Number(self.loop_depth as float));
 
     return Object(obj);
   }
