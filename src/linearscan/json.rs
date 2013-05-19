@@ -13,7 +13,7 @@ trait JsonHelper {
 
 impl<K: KindHelper+Copy+ToStr> ToJson for Block<K> {
   fn to_json(&self) -> Json {
-    let mut obj: ~Object = ~HashMap::new();
+    let mut obj = ~HashMap::new();
 
     obj.insert(~"id", Number(self.id as float));
     obj.insert(~"successors", List(do self.successors.map() |succ| {
@@ -31,7 +31,7 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Block<K> {
 
 impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
   fn to_json(&self) -> Json {
-    let mut obj: ~Object = ~HashMap::new();
+    let mut obj = ~HashMap::new();
 
     obj.insert(~"id", Number(self.id as float));
     obj.insert(~"block", Number(self.block as float));
@@ -58,7 +58,7 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
 
 impl ToJson for Interval {
   fn to_json(&self) -> Json {
-    let mut obj: ~Object = ~HashMap::new();
+    let mut obj = ~HashMap::new();
 
     obj.insert(~"id", Number(self.id as float));
     obj.insert(~"parent", match self.parent {
@@ -75,7 +75,7 @@ impl ToJson for Interval {
 
 impl ToJson for LiveRange {
   fn to_json(&self) -> Json {
-    let mut obj: ~Object = ~HashMap::new();
+    let mut obj = ~HashMap::new();
 
     obj.insert(~"start", Number(self.start as float));
     obj.insert(~"end", Number(self.end as float));
@@ -86,7 +86,7 @@ impl ToJson for LiveRange {
 
 impl ToJson for Use {
   fn to_json(&self) -> Json {
-    let mut obj: ~Object = ~HashMap::new();
+    let mut obj = ~HashMap::new();
     let mut kind = ~HashMap::new();
 
     match self.kind {
@@ -129,7 +129,7 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
     let mut result = ~[];
 
     for self.intervals.each() |_, interval| {
-      let mut obj: ~Object = match interval.to_json() {
+      let mut obj = match interval.to_json() {
         Object(obj) => obj,
         _ => fail!("Unexpected interval JSON type")
       };
@@ -142,19 +142,19 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
   }
 
   fn get_instructions(&self) -> Json {
-    let mut result = ~[];
+    let mut result = ~HashMap::new();
 
-    for self.instructions.each() |_, instruction| {
-      result.push(instruction.to_json());
+    for self.instructions.each() |id, instruction| {
+      result.insert(id.to_str(), instruction.to_json());
     }
 
-    return List(result);
+    return Object(result);
   }
 }
 
 impl<K: KindHelper+Copy+ToStr> ToJson for Graph<K> {
   fn to_json(&self) -> Json {
-    let mut result: ~Object = ~HashMap::new();
+    let mut result = ~HashMap::new();
 
     // Export blocks
     result.insert(~"blocks", self.get_blocks());
