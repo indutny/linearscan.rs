@@ -170,6 +170,8 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
 
 impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
   fn flatten(&mut self) -> ~[BlockId] {
+    self.flatten_assign_indexes();
+
     let mut queue = ~[self.root];
     let mut result = ~[];
     let mut visited = ~BitvSet::new();
