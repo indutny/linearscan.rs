@@ -3,8 +3,24 @@ function Converter(options) {
   this.output = options.output || process.stdout;
 
   this.offset = {
-    top: 32,
+    top: 8,
     left: 8
+  };
+  this.annotation = {
+    width: 280,
+    height: 0,
+    item: {
+      width: 24,
+      height: 24,
+      padding: 8
+    }
+  };
+  this.instruction = {
+    marker: {
+      width: 20,
+      padding: 4
+    },
+    height: 20
   };
   this.block = {
     r: 3,
@@ -74,7 +90,7 @@ Converter.prototype.start = function start(data) {
 };
 
 Converter.prototype.getX = function getX(x) {
-  return this.offset.left + x;
+  return this.offset.left + this.annotation.width + x;
 };
 
 Converter.prototype.getY = function getY(y) {
@@ -84,6 +100,26 @@ Converter.prototype.getY = function getY(y) {
 Converter.prototype.draw = function draw() {
   var self = this;
 
+  this.drawStyles();
+  this.drawScripts();
+
+  this.drawAnnotation();
+  this.drawInstructions();
+
+  this.input.blocks.forEach(function(block) {
+    this.drawBlock(block);
+  }, this);
+
+  this.input.intervals.forEach(function(interval, i) {
+    this.drawInterval(interval, i);
+  }, this);
+
+  this.input.blocks.forEach(function(block) {
+    this.drawArrows(block);
+  }, this);
+};
+
+Converter.prototype.drawStyles = function drawStyles() {
   this.tag('defs', function() {
     this.tag('marker', {
       id: 'arrow',
@@ -107,36 +143,35 @@ Converter.prototype.draw = function draw() {
       src: local("Raleway"),
       url(http://themes.googleusercontent.com/static/fonts/raleway/v6/cIFypx4yrWPDz3zOxk7hIQLUuEpTyoUstqEm5AMlJo4.woff) format("woff");
     }
-    .arrow { stroke: rgba(0,0,0,0.6); fill: transparent; }
-    .arrow-mark { fill: rgba(0,0,0,0.6); }
+    .annotation-wrap { fill: transparent; stroke: #333 }
+    .instruction-marker { fill: transparent; }
+    .instruction-marker-text, .instruction-text {
+      font-family: 'Raleway';
+      dominant-baseline': middle;
+    }
+    .instruction-marker-text {
+      font-size: 8px;
+    }
+    .arrow { stroke: #333; fill: transparent; }
+    .arrow-mark { fill: #333; }
     .block-fill { fill: #4CBFCB; }
     .interval-empty { fill: #A4EEE8; }
-    .interval-physical { fill: #FD6218; }
-    .interval-normal { fill: #FBA42B; }
+    .range-physical { fill: #FD6218; }
+    .range-normal { fill: #FBA42B; }
     .use-any { fill: #F6E575; }
-    .use-register { fill: #BCDD70; }
-    .use-fixed { fill: #FD621; }
+    .use-register { fill: #315B8F; }
+    .use-fixed { fill: #FD6210; }
     .highlight-interval { fill: #16DDD7; }
     .highlight-output { fill: #A40B04; }
     .highlight-input { fill: #0CF471; }
     .highlight-tmp { fill: #601D61; }
   ]]>*/}.toString().replace(/^function\s*\(\)\s*{\/\*|\*\/}$/g, ''));
+};
 
-  this.tag('text', {
-    id: 'hint',
-    x: this.offset.left,
-    y: this.offset.top / 2,
-    'dominant-baseline': 'central',
-    'font-family': 'Raleway',
-  }, ' ');
-
+Converter.prototype.drawScripts = function drawScripts() {
   this.tag('script', { type: 'text/ecmascript' },
            '<![CDATA[var instructions=' +
            JSON.stringify(this.input.instructions) +
-           ']]>');
-  this.tag('script', { type: 'text/ecmascript' },
-           '<![CDATA[var intervals=' +
-           JSON.stringify(this.input.intervals) +
            ']]>');
   this.tag('script', { type: 'text/ecmascript' }, '<![CDATA[\n' +
   function() {
@@ -148,20 +183,12 @@ Converter.prototype.draw = function draw() {
       );
     }
     function highlight(className, color) {
-      console.log(className);
       each(className, function(i) {
         i.classList.add('highlight-' + color);
         highlighted.push(function() {
           i.classList.remove('highlight-' + color);
         });
       });
-    }
-    function interval_to_str(i) {
-      if (intervals[i].value === 'v') {
-        return 'v' + i;
-      } else {
-        return intervals[i].value;
-      }
     }
     function h(what, color, noclear) {
       if (!color) color = 'interval';
@@ -174,39 +201,23 @@ Converter.prototype.draw = function draw() {
       if (what.c !== undefined) {
         highlight('c-' + what.c, color);
 
-        // Display hint and highlight outputs and inputs
+        // Highlight outputs and inputs
         var instr = instructions[what.c];
-        var hintText = what.c + ': ';
         if (instr) {
           if (instr.output !== null) {
-            hintText += interval_to_str(instr.output) + '=';
             h({ r: instr.output }, 'output', true);
           }
-          hintText += instr.kind + '(';
           instr.inputs.forEach(function(input, i) {
-            hintText += interval_to_str(input);
-            if (i !== instr.inputs.length - 1) hintText += ', ';
             h({ r: input }, 'input', true);
           });
-          hintText += ')';
 
           if (instr.temporary.length > 0) {
-            hintText += ' | tmp: ';
             instr.temporary.forEach(function(tmp, i) {
-              hintText += interval_to_str(tmp);
-              if (i !== instr.temporary.length - 1) hintText += ', ';
               h({ r: tmp }, 'tmp', true);
             });
           }
-        } else {
-          hintText += 'empty';
         }
-        hint(hintText);
       }
-    }
-    var hintItem = document.getElementById('hint').firstChild;
-    function hint(text) {
-      hintItem.nodeValue = text;
     }
     function clear() {
       for (var i = highlighted.length - 1; i >= 0; i--) {
@@ -215,17 +226,108 @@ Converter.prototype.draw = function draw() {
       highlighted = [];
     }
   }.toString().replace(/^function\s*\(\)\s*{\n?|\n?}$/g, '') + ']]>');
+};
 
-  this.input.blocks.forEach(function(block) {
-    this.drawBlock(block);
-  }, this);
+Converter.prototype.drawAnnotation = function drawAnnotation() {
+  var annotation = {
+    'range-physical': 'Physical register range',
+    'range-normal': 'Normal range',
+    'use-any': 'Any use',
+    'use-register': 'Register use',
+    'use-fixed': 'Use of fixed register',
+    'highlight-output': 'Instruction\'s output',
+    'highlight-input': 'Instruction\'s input',
+    'highlight-tmp': 'Instruction\'s temporary'
+  };
+  var keys = Object.keys(annotation);
 
-  this.input.intervals.forEach(function(interval, i) {
-    this.drawInterval(interval, i);
-  }, this);
+  this.annotation.height = keys.length * this.annotation.item.height;
 
-  this.input.blocks.forEach(function(block) {
-    this.drawArrows(block);
+  // Draw bounding rect
+  this.tag('rect', {
+    x: this.offset.left - 4,
+    y: this.offset.top - 2,
+    width: this.annotation.width,
+    height: this.annotation.height,
+    'class': 'annotation-wrap'
+  });
+
+  // Just to add some margin betwen annotation and instructions
+  this.annotation.height += 16;
+
+  // Draw items
+  for (var i = 0; i < keys.length; i++) {
+    this.tag('rect', {
+      x: this.offset.left,
+      y: this.offset.top + this.annotation.item.height * i,
+      width: this.annotation.item.width - this.annotation.item.padding,
+      height: this.annotation.item.height - this.annotation.item.padding,
+      'class': keys[i]
+    });
+    this.tag('text', {
+      x: this.offset.left + this.annotation.item.width,
+      y: this.offset.top + this.annotation.item.height * i +
+         this.annotation.item.height / 2,
+      'font-family': 'Raleway',
+      'dominant-baseline': 'middle'
+    }, annotation[keys[i]]);
+  }
+};
+
+Converter.prototype.drawInstructions = function drawInstructions() {
+  var self = this;
+  function stringify(instr) {
+    function interval(id) {
+      var interval = self.input.intervals[id];
+      return '<tspan class="r-' + id + '">' +
+             (interval.value === 'v' ? 'v' + interval.id : interval.value) +
+             '</tspan>';
+    }
+
+    var res = '';
+    if (instr.output !== null)
+      res += interval(instr.output) + ' = ';
+    res += instr.kind + '(';
+    instr.inputs.forEach(function(input, i) {
+      res += interval(input);
+      if (i !== instr.inputs.length - 1) res += ', ';
+    });
+    res += ')';
+    if (instr.temporary.length > 0) {
+      res += ' | tmp: ';
+      instr.temporary.forEach(function(tmp, i) {
+        res += interval(tmp);
+        if (i !== instr.temporary.length - 1) res += ', ';
+      });
+    }
+    return res;
+  }
+
+  Object.keys(this.input.instructions).map(function(key) {
+    return parseInt(key, 10);
+  }).forEach(function(key, i) {
+    var markerY = this.offset.top + this.annotation.height +
+                  i * this.instruction.height;
+    // Draw marker
+    this.tag('rect', {
+      'class': 'instruction-marker c-' + key,
+      x: this.offset.left,
+      y: markerY,
+      width: this.instruction.marker.width - this.instruction.marker.padding,
+      height: this.instruction.height - this.instruction.marker.padding
+    });
+    this.tag('text', {
+      'class': 'instruction-marker-text',
+      x: this.offset.left + 4,
+      y: markerY + this.instruction.height / 2
+    }, key);
+
+    // Draw text
+    this.tag('text', {
+      'class': 'instruction-text',
+      x: this.offset.left + this.instruction.marker.width,
+      y: markerY + this.instruction.height / 2
+    }, stringify(this.input.instructions[key]));
   }, this);
 };
 
@@ -340,7 +442,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
         width: this.interval.width -
                (c === range.end - 1 ? this.interval.paddingX : 0),
         height: this.interval.height - this.interval.paddingY,
-        'class': interval.physical ? 'interval-physical' : 'interval-normal'
+        'class': interval.physical ? 'range-physical' : 'range-normal'
       });
     }
   }, this);
