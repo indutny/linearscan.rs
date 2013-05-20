@@ -167,6 +167,76 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     self.intervals.find_mut(id).unwrap()
   }
 
+  fn get_next_intersection(&self,
+                           a: &IntervalId,
+                           b: &IntervalId) -> Option<InstrId> {
+    let int_a = self.intervals.get(a);
+    let int_b = self.intervals.get(b);
+
+    for int_a.ranges.each() |a| {
+      for int_b.ranges.each() |b| {
+        match a.get_intersection(b) {
+          Some(pos) => {
+            return Some(pos)
+          },
+          _ => ()
+        }
+      }
+    }
+
+    return None;
+  }
+
+  fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
+    let child = Interval::new(self);
+    let parent = match self.get_interval(id).parent {
+      Some(parent) => parent,
+      None => *id
+    };
+
+    // Add child
+    self.get_interval(&parent).children.push(child);
+    self.get_interval(&child).parent = Some(parent);
+
+    // Move out ranges
+    let mut child_ranges =  ~[];
+    let parent_ranges = do self.get_interval(id).ranges.filter_mapped |range| {
+      if range.end <= pos {
+        Some(*range)
+      } else if range.start < pos {
+        // Split required
+        child_ranges.push(LiveRange {
+          start: pos,
+          end: range.end
+        });
+        Some(LiveRange {
+          start: range.start,
+          end: pos
+        })
+      } else {
+        child_ranges.push(*range);
+        None
+      }
+    };
+    self.get_interval(&child).ranges = child_ranges;
+    self.get_interval(&parent).ranges = parent_ranges;
+
+    // Move out uses
+    let mut child_uses =  ~[];
+    let parent_uses = do self.get_interval(id).uses.filter_mapped |u| {
+      if u.pos < pos {
+        Some(*u)
+      } else {
+        child_uses.push(*u);
+        None
+      }
+    };
+    self.get_interval(&child).uses = child_uses;
+    self.get_interval(&parent).uses = parent_uses;
+
+    return child;
+  }
+
   #[inline(always)]
   priv fn block_id(&mut self) -> BlockId {
     let r = self.block_id;
@@ -417,7 +487,17 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
 
 impl LiveRange {
   fn covers(&self, pos: InstrId) -> bool {
-    return self.start >= pos || pos < self.end;
+    return self.start <= pos && pos < self.end;
+  }
+
+  fn get_intersection(&self, other: &LiveRange) -> Option<InstrId> {
+    if self.covers(other.start) {
+      return Some(other.start);
+    } else if self.covers(other.end) ||
+              other.start < self.start && self.end <= other.end {
+      return Some(self.start);
+    }
+    return None;
   }
 }
 
