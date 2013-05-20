@@ -1,15 +1,18 @@
 use linearscan::graph::{Graph, KindHelper, Interval,
-                        IntervalId, InstrId, Register};
+                        IntervalId, InstrId, RegisterId,
+                        Value, Register, Stack};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 use std::sort::quick_sort;
 
 pub struct Config {
-  register_count: uint
+  register_count: RegisterId
 }
 
 struct AllocatorState {
   config: Config,
+  spill_count: uint,
+  spills: ~[Value],
   unhandled: ~[IntervalId],
   active: ~[IntervalId],
   inactive: ~[IntervalId]
@@ -22,6 +25,15 @@ pub trait Allocator {
 
 trait AllocatorHelper {
   fn walk_intervals(&mut self, config: Config);
+  fn each_active<'r>(&'r self,
+                     state: &'r AllocatorState,
+                     f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool;
+  fn each_intersecting<'r>(&'r self,
+                           current: IntervalId,
+                           state: &'r AllocatorState,
+                           f: &fn(i: &IntervalId,
+                                  reg: RegisterId,
+                                  pos: InstrId) -> bool) -> bool;
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
                            state: &'r mut AllocatorState) -> bool;
@@ -41,6 +53,7 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
     for uint::range(0, config.register_count) |i| {
       let interval = Interval::new(self);
       self.get_interval(&interval).value = Register(i);
+      self.get_interval(&interval).fixed = true;
       self.physical.push(interval);
     }
 
@@ -58,6 +71,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
   fn walk_intervals(&mut self, config: Config) {
     let mut state = ~AllocatorState {
       config: config,
+      spill_count: 0,
+      spills: ~[],
       unhandled: ~[],
       active: ~[],
       inactive: ~[]
@@ -66,12 +81,12 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     // We'll work with intervals that contain any ranges
     for self.intervals.each() |_, interval| {
       if interval.ranges.len() > 0 {
-        match interval.value {
+        if interval.fixed {
           // Push all physical registers to active
-          Register(_) => state.active.push(interval.id),
-
+          state.active.push(interval.id);
+        } else {
           // And everything else to unhandled
-          _ => state.unhandled.push(interval.id)
+          state.unhandled.push(interval.id);
         }
       }
     }
@@ -82,6 +97,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       let position = self.get_interval(&current).start();
 
       // active => inactive or handled
+      let mut handled = ~[];
       do state.active.retain |id| {
         if self.get_interval(id).covers(position) {
           true
@@ -89,6 +105,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
           if position <= self.get_interval(id).end() {
             state.inactive.push(*id);
           }
+          handled.push(self.get_interval(id).value);
           false
         }
       };
@@ -97,11 +114,17 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       do state.inactive.retain |id| {
         if self.get_interval(id).covers(position) {
           state.active.push(*id);
+          handled.push(self.get_interval(id).value);
           false
         } else {
           position < self.get_interval(id).end()
         }
       };
+
+      // Return handled spills
+      for handled.each() |v| {
+        state.to_handled(*v)
+      }
 
       // Allocate free register
       if !self.allocate_free_reg(current, state) {
@@ -117,6 +140,36 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     }
   }
 
+  fn each_active<'r>(&'r self,
+                     state: &'r AllocatorState,
+                     f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool {
+    for state.active.each() |id| {
+      match self.intervals.get(id).value {
+        Register(reg) => if !f(id, reg) { break },
+        _ => fail!("Expected register in active")
+      };
+    }
+    true
+  }
+
+  fn each_intersecting<'r>(&'r self,
+                           current: IntervalId,
+                           state: &'r AllocatorState,
+                           f: &fn(i: &IntervalId,
+                                  reg: RegisterId,
+                                  pos: InstrId) -> bool) -> bool {
+    for state.inactive.each() |id| {
+      match self.get_next_intersection(id, &current) {
+        Some(pos) => match self.intervals.get(id).value {
+          Register(reg) => if !f(id, reg, pos) { break },
+          _ => fail!("Expected register in inactive")
+        },
+        None => ()
+      };
+    }
+    true
+  }
+
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
                            state: &'r mut AllocatorState) -> bool {
@@ -124,22 +177,13 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
                                       uint::max_value);
 
     // All active intervals use registers
-    for state.active.each() |id| {
-      match self.get_interval(id).value {
-        Register(reg) => free_pos[reg] = 0,
-        _ => fail!("Active interval should have register value")
-      }
+    for self.each_active(state) |_, reg| {
+      free_pos[reg] = 0;
     }
 
     // All inactive registers will eventually use registers
-    for state.inactive.each() |id| {
-      match self.get_next_intersection(id, &current) {
-        Some(pos) => match self.get_interval(id).value {
-          Register(reg) => free_pos[reg] = pos,
-          _ => fail!("Active interval should have register value")
-        },
-        None => ()
-      }
+    for self.each_intersecting(current, state) |_, reg, pos| {
+      free_pos[reg] = pos;
     }
 
     // Choose register with maximum free_pos
@@ -150,10 +194,10 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         max_pos = *pos;
         reg = i;
       }
-    };
+    }
 
     if max_pos == 0 {
-      // All registers are blocked - faiulre
+      // All registers are blocked - failure
       return false;
     }
 
@@ -172,6 +216,102 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
   fn allocate_blocked_reg<'r>(&'r mut self,
                               current: IntervalId,
                               state: &'r mut AllocatorState) {
+    let mut use_pos = vec::from_elem(state.config.register_count,
+                                     uint::max_value);
+    let mut block_pos = vec::from_elem(state.config.register_count,
+                                       uint::max_value);
+    let start = self.get_interval(&current).start();
+
+    // Populate use_pos from every non-fixed interval
+    for self.each_active(state) |id, reg| {
+      if !self.intervals.get(id).fixed {
+        match self.next_use_after(id, start) {
+          Some(pos) => if use_pos[reg] > pos {
+            use_pos[reg] = pos;
+          },
+          None => ()
+        }
+      }
+    }
+    for self.each_intersecting(current, state) |id, reg, _| {
+      if !self.intervals.get(id).fixed {
+        match self.next_use_after(id, start) {
+          Some(pos) => if use_pos[reg] > pos {
+            use_pos[reg] = pos;
+          },
+          None => ()
+        }
+      }
+    }
+
+    // Populate block_pos from every fixed interval
+    for self.each_active(state) |id, reg| {
+      if self.intervals.get(id).fixed {
+        block_pos[reg] = 0;
+        use_pos[reg] = 0;
+      }
+    }
+    for self.each_intersecting(current, state) |id, reg, pos| {
+      if self.intervals.get(id).fixed {
+        block_pos[reg] = pos;
+        if use_pos[reg] > pos {
+          use_pos[reg] = pos;
+        }
+      }
+    }
+
+    // Find register with the farest use
+    let mut reg = 0;
+    let mut max_pos = 0;
+    for use_pos.eachi() |i, pos| {
+      if *pos > max_pos {
+        max_pos = *pos;
+        reg = i;
+      }
+    }
+
+    let first_use = self.next_use_after(&current, 0);
+    match first_use {
+      Some(pos) => {
+        if max_pos < pos {
+          // Spill current itself
+          self.get_interval(&current).value = state.get_spill();
+
+          // And split before first register use
+          self.split_before(current, pos, state);
+        } else {
+          // Assign register to current
+          self.get_interval(&current).value = Register(reg);
+
+          // If blocked somewhere before end by fixed interval
+          if block_pos[reg] <= self.get_interval(&current).end() {
+            // Split before this position
+            self.split_before(current, block_pos[reg], state);
+          }
+
+          // Split and spill, active and intersecting inactive
+          let mut to_split = ~[];
+          for self.each_active(state) |id, _reg| {
+            if _reg == reg {
+              to_split.push(*id);
+            }
+          }
+          for self.each_intersecting(current, state) |id, _reg, _| {
+            if _reg == reg {
+              to_split.push(*id);
+            }
+          }
+          for to_split.each() |id| {
+            self.get_interval(id).value = state.get_spill();
+            self.split_before(*id, start, state);
+          };
+        }
+      },
+      None => {
+        // Spill current, it has no uses
+        self.get_interval(&current).value = state.get_spill();
+      }
+    }
   }
 
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState) {
@@ -193,5 +333,24 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
+  }
+}
+
+impl AllocatorState {
+  fn get_spill(&mut self) -> Value {
+    return if self.spills.len() > 0 {
+      self.spills.shift()
+    } else {
+      let slot = self.spill_count;
+      self.spill_count += 1;
+      Stack(slot)
+    }
+  }
+
+  fn to_handled(&mut self, value: Value) {
+    match value {
+      Stack(slot) => self.spills.push(Stack(slot)),
+      _ => ()
+    }
   }
 }

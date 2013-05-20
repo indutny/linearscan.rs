@@ -135,7 +135,7 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
         _ => fail!("Unexpected interval JSON type")
       };
 
-      obj.insert(~"physical", Boolean(self.physical.contains(&interval.id)));
+      obj.insert(~"physical", Boolean(interval.fixed));
       result.push(Object(obj));
     }
 

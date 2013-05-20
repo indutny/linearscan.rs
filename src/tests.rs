@@ -10,7 +10,7 @@ enum Kind {
   Phi,
   Increment,
   BranchIfBigger,
-  PrintHello,
+  Print,
   Zero,
   Ten,
   Goto,
@@ -20,7 +20,7 @@ enum Kind {
 impl KindHelper for Kind {
   fn is_call(&self) -> bool {
     match self {
-      &PrintHello => true,
+      &Print => true,
       _ => false
     }
   }
@@ -33,7 +33,10 @@ impl KindHelper for Kind {
   }
 
   fn use_kind(&self, _: uint) -> UseKind {
-    UseAny
+    match self {
+      &Print => UseRegister,
+      _ => UseAny
+    }
   }
 
   fn result_kind(&self) -> Option<UseKind> {
@@ -41,7 +44,7 @@ impl KindHelper for Kind {
       &Goto => None,
       &Return => None,
       &BranchIfBigger => None,
-      &PrintHello => None,
+      &Print => None,
       _ => Some(UseRegister)
     }
   }
@@ -82,7 +85,7 @@ fn realword_example() {
     };
 
     do g.with_block(left) |b| {
-      b.add(PrintHello, ~[]);
+      b.add(Print, ~[phi]);
       b.add(Goto, ~[]);
       b.goto(after_left);
     };
