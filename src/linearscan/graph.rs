@@ -357,6 +357,21 @@ pub impl Interval {
     return &mut self.ranges[0];
   }
 
+  fn start(&mut self) -> InstrId {
+    return self.first_range().start;
+  }
+
+  fn end(&mut self) -> InstrId {
+    assert!(self.ranges.len() != 0);
+    return self.ranges.last().end;
+  }
+
+  fn covers(&self, pos: InstrId) -> bool {
+    return do self.ranges.any() |range| {
+      range.covers(pos)
+    };
+  }
+
   fn add_use(&mut self, kind: UseKind, pos: InstrId) {
     self.uses.push(Use { kind: kind, pos: pos });
   }
@@ -397,6 +412,12 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
       &Phi => Some(UseAny),
       &ToPhi => Some(UseAny)
     }
+  }
+}
+
+impl LiveRange {
+  fn covers(&self, pos: InstrId) -> bool {
+    return self.start >= pos || pos < self.end;
   }
 }
 
