@@ -191,19 +191,20 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
   fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
     let child = Interval::new(self);
-    let mut parent = match self.get_interval(id).parent {
+    let parent = match self.get_interval(id).parent {
       Some(parent) => parent,
       None => *id
     };
 
     // Find appropriate child interval
-    if !self.intervals.get(&parent).covers(pos) {
-      for self.intervals.get(&parent).children.each() |child| {
+    let mut split_parent = parent;
+    if !self.intervals.get(&split_parent).covers(pos) {
+      for self.intervals.get(&split_parent).children.each() |child| {
         if self.intervals.get(child).covers(pos) {
-          parent = *child;
+          split_parent = *child;
         }
       }
-      assert!(self.intervals.get(&parent).covers(pos));
+      assert!(self.intervals.get(&split_parent).covers(pos));
     }
 
     // Add child
@@ -213,7 +214,8 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     // Move out ranges
     let mut child_ranges =  ~[];
     let mut range_split = false;
-    let parent_ranges = do self.get_interval(id).ranges.filter_mapped |range| {
+    let parent_ranges =
+        do self.intervals.get(&split_parent).ranges.filter_mapped |range| {
       if range.end <= pos {
         Some(*range)
       } else if range.start < pos {
@@ -238,11 +240,12 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
       child_ranges.push(LiveRange { start: pos, end: pos });
     }
     self.get_interval(&child).ranges = child_ranges;
-    self.get_interval(&parent).ranges = parent_ranges;
+    self.get_interval(&split_parent).ranges = parent_ranges;
 
     // Move out uses
     let mut child_uses =  ~[];
-    let parent_uses = do self.get_interval(id).uses.filter_mapped |u| {
+    let parent_uses =
+        do self.intervals.get(&split_parent).uses.filter_mapped |u| {
       if range_split && u.pos <= pos || !range_split && u.pos < pos {
         Some(*u)
       } else {
@@ -251,7 +254,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
       }
     };
     self.get_interval(&child).uses = child_uses;
-    self.get_interval(&parent).uses = parent_uses;
+    self.get_interval(&split_parent).uses = parent_uses;
 
     return child;
   }
