@@ -281,8 +281,6 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     function covers(interval) {
       return interval.uses.some(function(use) {
         return use.pos === instr.id;
-      }) || interval.ranges.some(function(range) {
-        return range.start <= instr.id && instr.id < range.end;
       });
     }
     function interval_to_str(id) {

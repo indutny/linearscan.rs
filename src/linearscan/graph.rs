@@ -83,6 +83,7 @@ pub struct Use {
   pos: InstrId
 }
 
+#[deriving(Eq)]
 pub enum UseKind {
   UseAny,
   UseRegister,
@@ -190,10 +191,20 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
   fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
     let child = Interval::new(self);
-    let parent = match self.get_interval(id).parent {
+    let mut parent = match self.get_interval(id).parent {
       Some(parent) => parent,
       None => *id
     };
+
+    // Find appropriate child interval
+    if !self.intervals.get(&parent).covers(pos) {
+      for self.intervals.get(&parent).children.each() |child| {
+        if self.intervals.get(child).covers(pos) {
+          parent = *child;
+        }
+      }
+      assert!(self.intervals.get(&parent).covers(pos));
+    }
 
     // Add child
     self.get_interval(&parent).children.push(child);
@@ -201,11 +212,13 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
     // Move out ranges
     let mut child_ranges =  ~[];
+    let mut range_split = false;
     let parent_ranges = do self.get_interval(id).ranges.filter_mapped |range| {
       if range.end <= pos {
         Some(*range)
       } else if range.start < pos {
         // Split required
+        range_split = true;
         child_ranges.push(LiveRange {
           start: pos,
           end: range.end
@@ -219,13 +232,18 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
         None
       }
     };
+
+    // Ensure that at least one range is always present
+    if child_ranges.len() == 0 {
+      child_ranges.push(LiveRange { start: pos, end: pos });
+    }
     self.get_interval(&child).ranges = child_ranges;
     self.get_interval(&parent).ranges = parent_ranges;
 
     // Move out uses
     let mut child_uses =  ~[];
     let parent_uses = do self.get_interval(id).uses.filter_mapped |u| {
-      if u.pos <= pos {
+      if range_split && u.pos <= pos || !range_split && u.pos < pos {
         Some(*u)
       } else {
         child_uses.push(*u);
@@ -236,20 +254,6 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     self.get_interval(&parent).uses = parent_uses;
 
     return child;
-  }
-
-  fn next_use_after(&self,
-                    of: &IntervalId,
-                    after: InstrId) -> Option<Use> {
-    for self.intervals.get(of).uses.each() |u| {
-      match u.kind {
-        UseRegister => if u.pos >= after {
-          return Some(*u);
-        },
-        _ => ()
-      }
-    };
-    return None;
   }
 
   #[inline(always)]
@@ -444,6 +448,7 @@ pub impl Interval {
   }
 
   fn start(&self) -> InstrId {
+    assert!(self.ranges.len() != 0);
     return self.ranges.head().start;
   }
 
@@ -462,6 +467,25 @@ pub impl Interval {
 
   fn add_use(&mut self, kind: UseKind, pos: InstrId) {
     self.uses.push(Use { kind: kind, pos: pos });
+  }
+
+  fn next_fixed_use(&self, after: InstrId) -> Option<Use> {
+    for self.uses.each() |u| {
+      match u.kind {
+        UseFixed(_) if u.pos >= after => { return Some(*u); },
+        _ => ()
+      }
+    };
+    return None;
+  }
+
+  fn next_use(&self, after: InstrId) -> Option<Use> {
+    for self.uses.each() |u| {
+      if u.pos >= after && u.kind != UseAny {
+        return Some(*u);
+      }
+    };
+    return None;
   }
 }
 

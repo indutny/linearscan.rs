@@ -1,5 +1,6 @@
 use linearscan::graph::{Graph, KindHelper, Interval,
                         IntervalId, InstrId, RegisterId,
+                        UseFixed,
                         Value, Register, Stack};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
@@ -184,16 +185,34 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
 
     // All inactive registers will eventually use registers
     for self.each_intersecting(current, state) |_, reg, pos| {
-      free_pos[reg] = pos;
+      if free_pos[reg] > pos {
+        free_pos[reg] = pos;
+      }
     }
 
     // Choose register with maximum free_pos
     let mut reg = 0;
     let mut max_pos = 0;
-    for free_pos.eachi() |i, pos| {
-      if *pos > max_pos {
-        max_pos = *pos;
-        reg = i;
+    match self.intervals.get(&current).next_fixed_use(0) {
+      // Intervals with fixed use should have specific register
+      Some(u) => {
+        match u.kind {
+          UseFixed(r) => {
+            reg = r;
+            max_pos = free_pos[reg];
+          },
+          _ => fail!("Unexpected use kind")
+        }
+      },
+
+      // Other intervals should prefer register that's free for a longer time
+      None => {
+        for free_pos.eachi() |i, pos| {
+          if *pos > max_pos {
+            max_pos = *pos;
+            reg = i;
+          }
+        }
       }
     }
 
@@ -226,8 +245,9 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
 
     // Populate use_pos from every non-fixed interval
     for self.each_active(state) |id, reg| {
-      if !self.intervals.get(id).fixed {
-        match self.next_use_after(id, start) {
+      let interval = self.intervals.get(id);
+      if !interval.fixed {
+        match interval.next_use(start) {
           Some(u) => if use_pos[reg] > u.pos {
             use_pos[reg] = u.pos;
           },
@@ -236,8 +256,9 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       }
     }
     for self.each_intersecting(current, state) |id, reg, _| {
-      if !self.intervals.get(id).fixed {
-        match self.next_use_after(id, start) {
+      let interval = self.intervals.get(id);
+      if !interval.fixed {
+        match interval.next_use(start) {
           Some(u) => if use_pos[reg] > u.pos {
             use_pos[reg] = u.pos;
           },
@@ -265,14 +286,30 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     // Find register with the farest use
     let mut reg = 0;
     let mut max_pos = 0;
-    for use_pos.eachi() |i, pos| {
-      if *pos > max_pos {
-        max_pos = *pos;
-        reg = i;
+    match self.intervals.get(&current).next_fixed_use(0) {
+      // Intervals with fixed use should have specific register
+      Some(u) => {
+        match u.kind {
+          UseFixed(r) => {
+            reg = r;
+            max_pos = use_pos[reg];
+          },
+          _ => fail!("Unexpected use kind")
+        }
+      },
+
+      // Other intervals should prefer register that isn't used for longer time
+      None => {
+        for use_pos.eachi() |i, pos| {
+          if *pos > max_pos {
+            max_pos = *pos;
+            reg = i;
+          }
+        }
       }
     }
 
-    let first_use = self.next_use_after(&current, 0);
+    let first_use = self.get_interval(&current).next_use(0);
     match first_use {
       Some(u) => {
         if max_pos < u.pos {
