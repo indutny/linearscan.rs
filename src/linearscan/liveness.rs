@@ -1,4 +1,5 @@
-use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister};
+use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister,
+                        InstrKind, ToPhi};
 use std::bitv::BitvSet;
 
 pub trait Liveness {
@@ -108,15 +109,29 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         // Process output
         match instr.output {
           Some(output) => {
+            fn defines_after<K: KindHelper+Copy+ToStr>(kind: &InstrKind<K>)
+                -> bool {
+              match kind {
+                &ToPhi => true,
+                _ => kind.is_call()
+              }
+            }
+
+            let pos = if defines_after(&instr.kind) {
+              instr_id + 1
+            } else {
+              instr_id
+            };
+
             if self.get_interval(&output).ranges.len() != 0  {
               // Shorten range if output outlives block, or is used anywhere
-              self.get_interval(&output).first_range().start = instr_id + 1;
+              self.get_interval(&output).first_range().start = pos;
             } else {
               // Add short range otherwise
-              self.get_interval(&output).add_range(instr_id + 1, instr_id + 2);
+              self.get_interval(&output).add_range(pos, pos + 1);
             }
             let out_kind = instr.kind.result_kind().unwrap();
-            self.get_interval(&output).add_use(out_kind, instr_id + 1);
+            self.get_interval(&output).add_use(out_kind, pos);
           },
           None => ()
         }
