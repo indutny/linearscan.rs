@@ -47,6 +47,9 @@ trait AllocatorHelper {
                        start: InstrId,
                        end: InstrId,
                        state: &'r mut AllocatorState) -> IntervalId;
+  fn split_and_spill<'r>(&'r mut self,
+                         current: IntervalId,
+                         state: &'r mut AllocatorState);
 }
 
 impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
@@ -329,22 +332,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
           }
 
           // Split and spill, active and intersecting inactive
-          let mut to_split = ~[];
-          for self.each_active(state) |id, _reg| {
-            if _reg == reg {
-              to_split.push(*id);
-            }
-          }
-          for self.each_intersecting(current, state) |id, _reg, _| {
-            if _reg == reg {
-              to_split.push(*id);
-            }
-          }
-          for to_split.each() |id| {
-            self.get_interval(id).value = state.get_spill();
-            let inter_start = self.get_interval(id).start();
-            self.split_between(*id, inter_start, start, state);
-          };
+          self.split_and_spill(current, state);
         }
       },
       None => {
@@ -374,6 +362,46 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
+  }
+
+  fn split_and_spill<'r>(&'r mut self,
+                         current: IntervalId,
+                         state: &'r mut AllocatorState) {
+    let reg = match self.intervals.get(&current).value {
+      Register(r) => r,
+      _ => fail!("Expected register value")
+    };
+    let start = self.intervals.get(&current).start();
+
+    // Filter out intersecting intervals
+    let mut to_split = ~[];
+    for self.each_active(state) |id, _reg| {
+      if _reg == reg {
+        to_split.push(*id);
+      }
+    }
+    for self.each_intersecting(current, state) |id, _reg, _| {
+      if _reg == reg {
+        to_split.push(*id);
+      }
+    }
+
+    // Split and spill!
+    for to_split.each() |id| {
+      // Spill after start of `current`
+      let spill_child = self.split_at(id, start);
+      self.get_interval(&spill_child).value = state.get_spill();
+
+      // Split before next register use position
+      match self.intervals.get(id).next_use(start) {
+        Some(u) => {
+          self.split_between(*id, start, u.pos, state);
+        },
+
+        // Let it be spilled for the rest of lifetime
+        None() => ()
+      }
+    };
   }
 }
 

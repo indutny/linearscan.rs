@@ -27,6 +27,9 @@ function Converter(options) {
     titleHeight: 24
   };
   this.interval = {
+    range: {
+      padding: 2
+    },
     paddingX: 2,
     paddingY: 2,
     width: 16,
@@ -478,10 +481,11 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
       this.tag('rect', {
         onmouseover: 'h({r:' + parent.id + ',c:' + c + '})',
         x: this.getX(c * this.interval.width),
-        y: y,
+        y: y + this.interval.range.padding,
         width: this.interval.width -
                (c === range.end - 1 ? this.interval.paddingX : 0),
-        height: this.interval.height - this.interval.paddingY,
+        height: this.interval.height - this.interval.paddingY -
+                2 * this.interval.range.padding,
         'class': interval.physical ? 'range-physical' : 'range-normal'
       });
     }
