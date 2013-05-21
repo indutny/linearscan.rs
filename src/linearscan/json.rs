@@ -66,6 +66,9 @@ impl ToJson for Interval {
       Some(id) => Number(id as float),
       None => Null
     });
+    obj.insert(~"children", List(do self.children.map() |child| {
+      Number(*child as float)
+    }));
     obj.insert(~"ranges", self.ranges.to_json());
     obj.insert(~"uses", self.uses.to_json());
     obj.insert(~"value", self.value.to_json());

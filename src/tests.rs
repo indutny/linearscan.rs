@@ -1,7 +1,7 @@
 extern mod std;
 
 use linearscan::{Allocator, Config, Graph, KindHelper,
-                 UseKind, UseAny, UseRegister};
+                 UseKind, UseAny, UseRegister, UseFixed};
 use std::json::ToJson;
 mod linearscan;
 
@@ -35,6 +35,7 @@ impl KindHelper for Kind {
   fn use_kind(&self, _: uint) -> UseKind {
     match self {
       &Print => UseRegister,
+      &Return => UseFixed(0),
       _ => UseAny
     }
   }
@@ -44,7 +45,6 @@ impl KindHelper for Kind {
       &Goto => None,
       &Return => None,
       &BranchIfBigger => None,
-      &Print => None,
       _ => Some(UseRegister)
     }
   }
@@ -68,10 +68,12 @@ fn realword_example() {
     let left = g.empty_block();
     let after_left = g.empty_block();
     let right = g.empty_block();
+    let ret = g.new_instr(Zero, ~[]);
 
     do g.block() |b| {
       b.make_root();
 
+      b.add_existing(ret);
       let zero = b.add(Zero, ~[]);
       b.to_phi(zero, phi);
       b.add(Goto, ~[]);
@@ -85,7 +87,8 @@ fn realword_example() {
     };
 
     do g.with_block(left) |b| {
-      b.add(Print, ~[phi]);
+      let print_res = b.add(Print, ~[phi]);
+      b.add(Increment, ~[print_res]);
       b.add(Goto, ~[]);
       b.goto(after_left);
     };
@@ -98,7 +101,7 @@ fn realword_example() {
     };
 
     do g.with_block(right) |b| {
-      b.add(Return, ~[]);
+      b.add(Return, ~[ret]);
       b.end();
     };
   };

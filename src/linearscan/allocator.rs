@@ -41,10 +41,11 @@ trait AllocatorHelper {
                               current: IntervalId,
                               state: &'r mut AllocatorState);
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
-  fn split_before<'r>(&'r mut self,
-                      current: IntervalId,
-                      pos: InstrId,
-                      state: &'r mut AllocatorState) -> IntervalId;
+  fn split_between<'r>(&'r mut self,
+                       current: IntervalId,
+                       start: InstrId,
+                       end: InstrId,
+                       state: &'r mut AllocatorState) -> IntervalId;
 }
 
 impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
@@ -207,7 +208,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     } else {
       // Register is available for some part of current's lifetime
       assert!(max_pos < self.get_interval(&current).end());
-      self.split_before(current, max_pos, state);
+      let start = self.get_interval(&current).start();
+      self.split_between(current, start, max_pos, state);
     }
 
     return true;
@@ -278,7 +280,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
           self.get_interval(&current).value = state.get_spill();
 
           // And split before first register use
-          self.split_before(current, pos, state);
+          self.split_between(current, start, pos, state);
         } else {
           // Assign register to current
           self.get_interval(&current).value = Register(reg);
@@ -286,7 +288,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
           // If blocked somewhere before end by fixed interval
           if block_pos[reg] <= self.get_interval(&current).end() {
             // Split before this position
-            self.split_before(current, block_pos[reg], state);
+            self.split_between(current, start, block_pos[reg], state);
           }
 
           // Split and spill, active and intersecting inactive
@@ -303,7 +305,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
           }
           for to_split.each() |id| {
             self.get_interval(id).value = state.get_spill();
-            self.split_before(*id, start, state);
+            let inter_start = self.get_interval(id).start();
+            self.split_between(*id, inter_start, start, state);
           };
         }
       },
@@ -324,12 +327,13 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     };
   }
 
-  fn split_before<'r>(&'r mut self,
-                      current: IntervalId,
-                      pos: InstrId,
-                      state: &'r mut AllocatorState) -> IntervalId {
+  fn split_between<'r>(&'r mut self,
+                       current: IntervalId,
+                       start: InstrId,
+                       end: InstrId,
+                       state: &'r mut AllocatorState) -> IntervalId {
     // TODO(indutny) split at block edges if possible
-    let res = self.split_at(&current, pos);
+    let res = self.split_at(&current, end);
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;

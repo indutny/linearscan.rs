@@ -38,9 +38,9 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
           None => true
         };
 
-        for inputs.each() |input| {
-          if !self.get_block(block).live_kill.contains(input) {
-            self.get_block(block).live_gen.insert(*input);
+        for inputs.each() |&input| {
+          if !self.get_block(block).live_kill.contains(&input) {
+            self.get_block(block).live_gen.insert(input);
           }
         }
       }
@@ -95,13 +95,13 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         self.get_interval(int_id).add_range(block_from, block_to);
       }
 
-      for instructions.each_reverse() |instr_id| {
-        let instr: ~Instruction<K> = copy *self.instructions.get(instr_id);
+      for instructions.each_reverse() |&instr_id| {
+        let instr: ~Instruction<K> = copy *self.instructions.get(&instr_id);
 
         // Call instructions should swap out all used registers into stack slots
         if instr.kind.is_call() {
           for physical.each() |reg| {
-            self.get_interval(reg).add_range(*instr_id, *instr_id + 1);
+            self.get_interval(reg).add_range(instr_id, instr_id + 1);
           }
         }
 
@@ -110,29 +110,29 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
           Some(output) => {
             if self.get_interval(&output).ranges.len() != 0  {
               // Shorten range if output outlives block, or is used anywhere
-              self.get_interval(&output).first_range().start = *instr_id;
+              self.get_interval(&output).first_range().start = instr_id + 1;
             } else {
               // Add short range otherwise
-              self.get_interval(&output).add_range(*instr_id, *instr_id + 1);
+              self.get_interval(&output).add_range(instr_id + 1, instr_id + 2);
             }
             let out_kind = instr.kind.result_kind().unwrap();
-            self.get_interval(&output).add_use(out_kind, *instr_id);
+            self.get_interval(&output).add_use(out_kind, instr_id + 1);
           },
           None => ()
         }
 
         // Process temporary
         for instr.temporary.each() |tmp| {
-          self.get_interval(tmp).add_range(*instr_id, *instr_id + 1);
-          self.get_interval(tmp).add_use(UseRegister, *instr_id);
+          self.get_interval(tmp).add_range(instr_id, instr_id + 1);
+          self.get_interval(tmp).add_use(UseRegister, instr_id);
         }
 
         // Process inputs
         for instr.inputs.eachi() |i, input| {
           if !live_out.contains(input) {
-            self.get_interval(input).add_range(block_from, *instr_id);
+            self.get_interval(input).add_range(block_from, instr_id);
           }
-          self.get_interval(input).add_use(instr.kind.use_kind(i), *instr_id);
+          self.get_interval(input).add_use(instr.kind.use_kind(i), instr_id);
         }
       }
     }

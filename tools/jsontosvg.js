@@ -149,7 +149,6 @@ Converter.prototype.drawStyles = function drawStyles() {
     .instruction-marker { fill: transparent; }
     .instruction-marker-text, .instruction-text {
       font-family: 'Raleway';
-      dominant-baseline': middle;
     }
     .instruction-marker-text {
       font-size: 8px;
@@ -171,6 +170,10 @@ Converter.prototype.drawStyles = function drawStyles() {
 };
 
 Converter.prototype.drawScripts = function drawScripts() {
+  this.tag('script', { type: 'text/ecmascript' },
+           '<![CDATA[var intervals =' +
+           JSON.stringify(this.input.intervals) +
+           ']]>');
   this.tag('script', { type: 'text/ecmascript' },
            '<![CDATA[var instructions=' +
            JSON.stringify(this.input.instructions) +
@@ -279,26 +282,42 @@ Converter.prototype.drawAnnotation = function drawAnnotation() {
 Converter.prototype.drawInstructions = function drawInstructions() {
   var self = this;
   function stringify(instr) {
-    function interval(id) {
+    function covers(interval) {
+      return interval.uses.some(function(use) {
+        return use.pos === instr.id;
+      }) || interval.ranges.some(function(range) {
+        return range.start <= instr.id && instr.id < range.end;
+      });
+    }
+    function interval_to_str(id) {
       var interval = self.input.intervals[id];
-      return '<tspan class="r-' + id + '">' +
+      if (!covers(interval)) {
+        for (var i = 0; i < interval.children.length; i++) {
+          if (covers(self.input.intervals[interval.children[i]])) {
+            return interval_to_str(interval.children[i]);
+          }
+        }
+      }
+      var parent = interval.parent !== null ? interval.parent : interval.id;
+      return '<tspan ' +
+             'class="r-' + parent + '">' +
              (interval.value === 'v' ? 'v' + interval.id : interval.value) +
              '</tspan>';
     }
 
     var res = '';
     if (instr.output !== null)
-      res += interval(instr.output) + ' = ';
+      res += interval_to_str(instr.output) + ' = ';
     res += instr.kind + '(';
     instr.inputs.forEach(function(input, i) {
-      res += interval(input);
+      res += interval_to_str(input);
       if (i !== instr.inputs.length - 1) res += ', ';
     });
     res += ')';
     if (instr.temporary.length > 0) {
       res += ' | tmp: ';
       instr.temporary.forEach(function(tmp, i) {
-        res += interval(tmp);
+        res += interval_to_str(tmp);
         if (i !== instr.temporary.length - 1) res += ', ';
       });
     }
@@ -316,6 +335,7 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     // Draw marker
     this.tag('rect', {
       'class': 'instruction-marker c-' + key,
+      onmouseover: 'h({c:' + instr.id + '})',
       x: this.offset.left + depthOffset,
       y: markerY,
       width: this.instruction.marker.width - this.instruction.marker.padding,
@@ -323,6 +343,7 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     });
     this.tag('text', {
       'class': 'instruction-marker-text',
+      onmouseover: 'h({c:' + instr.id + '})',
       x: this.offset.left + 4 + depthOffset,
       y: markerY + this.instruction.height / 2
     }, key);
@@ -330,6 +351,7 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     // Draw text
     this.tag('text', {
       'class': 'instruction-text',
+      onmouseover: 'h({c:' + instr.id + '})',
       x: this.offset.left + this.instruction.marker.width + depthOffset,
       y: markerY + this.instruction.height / 2
     }, stringify(instr));
@@ -417,14 +439,36 @@ Converter.prototype.drawArrow = function drawArrow(from, to) {
 };
 
 Converter.prototype.drawInterval = function drawInterval(interval, i) {
+  var self = this;
+  var parent = interval.parent === null ? interval :
+                                          this.input.intervals[interval.parent];
+  var edges = [];
+
+  [ parent ].concat(parent.children.map(function(c) {
+    return self.input.intervals[c];
+  })).reduce(function(start, i) {
+    var end = i.ranges[i.ranges.length - 1].end;
+    edges.push({ id: i.id, start: start, end: end });
+    return end;
+  }, 0);
+
+  function getEdgeId(pos) {
+    for (var i = 0; i < edges.length - 1; i++) {
+      var edge = edges[i];
+      if (edge.start <= pos && pos < edge.end) break;
+    }
+    return edges[i].id;
+  }
+
   var y = this.getY(this.block.titleHeight + this.interval.height * i);
 
   // Draw interval
   this.input.blocks.forEach(function(block) {
     for (var c = block.start; c < block.end; c++) {
       this.tag('rect', {
-        'class': 'r-' + interval.id + ' c-' + c + ' interval-empty',
-        onmouseover: 'h({r:' + interval.id + ',c:' + c + '})',
+        'class': (getEdgeId(c) === interval.id ? 'r-' + parent.id  : '') +
+                 ' c-' + c + ' interval-empty',
+        onmouseover: 'h({r:' + parent.id + ',c:' + c + '})',
         x: this.getX(c * this.interval.width),
         y: y,
         width: this.interval.width -
@@ -438,7 +482,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
   interval.ranges.forEach(function(range) {
     for (var c = range.start; c < range.end; c++) {
       this.tag('rect', {
-        onmouseover: 'h({r:' + interval.id + ',c:' + c + '})',
+        onmouseover: 'h({r:' + parent.id + ',c:' + c + '})',
         x: this.getX(c * this.interval.width),
         y: y,
         width: this.interval.width -
@@ -452,7 +496,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
   // Draw uses
   interval.uses.forEach(function(use) {
     this.tag('rect', {
-      onmouseover: 'h({r:' + interval.id + ',c: ' + use.pos + '})',
+      onmouseover: 'h({r:' + parent.id + ',c: ' + use.pos + '})',
       x: this.getX(use.pos * this.interval.width),
       y: y,
       width: this.use.width,

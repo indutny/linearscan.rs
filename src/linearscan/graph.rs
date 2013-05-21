@@ -86,7 +86,7 @@ pub struct Use {
 pub enum UseKind {
   UseAny,
   UseRegister,
-  UseFixed(Value)
+  UseFixed(RegisterId)
 }
 
 pub struct LiveRange {
@@ -453,7 +453,9 @@ pub impl Interval {
   }
 
   fn covers(&self, pos: InstrId) -> bool {
-    return do self.ranges.any() |range| {
+    return do self.uses.any() |u| {
+      u.pos == pos
+    } || do self.ranges.any() |range| {
       range.covers(pos)
     };
   }
