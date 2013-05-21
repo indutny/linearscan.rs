@@ -240,11 +240,11 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
   fn next_use_after(&self,
                     of: &IntervalId,
-                    after: InstrId) -> Option<InstrId> {
+                    after: InstrId) -> Option<Use> {
     for self.intervals.get(of).uses.each() |u| {
       match u.kind {
         UseRegister => if u.pos >= after {
-          return Some(u.pos);
+          return Some(*u);
         },
         _ => ()
       }

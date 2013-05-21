@@ -228,8 +228,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     for self.each_active(state) |id, reg| {
       if !self.intervals.get(id).fixed {
         match self.next_use_after(id, start) {
-          Some(pos) => if use_pos[reg] > pos {
-            use_pos[reg] = pos;
+          Some(u) => if use_pos[reg] > u.pos {
+            use_pos[reg] = u.pos;
           },
           None => ()
         }
@@ -238,8 +238,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     for self.each_intersecting(current, state) |id, reg, _| {
       if !self.intervals.get(id).fixed {
         match self.next_use_after(id, start) {
-          Some(pos) => if use_pos[reg] > pos {
-            use_pos[reg] = pos;
+          Some(u) => if use_pos[reg] > u.pos {
+            use_pos[reg] = u.pos;
           },
           None => ()
         }
@@ -274,13 +274,13 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
 
     let first_use = self.next_use_after(&current, 0);
     match first_use {
-      Some(pos) => {
-        if max_pos < pos {
+      Some(u) => {
+        if max_pos < u.pos {
           // Spill current itself
           self.get_interval(&current).value = state.get_spill();
 
           // And split before first register use
-          self.split_between(current, start, pos, state);
+          self.split_between(current, start, u.pos, state);
         } else {
           // Assign register to current
           self.get_interval(&current).value = Register(reg);
