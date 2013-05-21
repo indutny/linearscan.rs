@@ -171,10 +171,6 @@ Converter.prototype.drawStyles = function drawStyles() {
 
 Converter.prototype.drawScripts = function drawScripts() {
   this.tag('script', { type: 'text/ecmascript' },
-           '<![CDATA[var intervals =' +
-           JSON.stringify(this.input.intervals) +
-           ']]>');
-  this.tag('script', { type: 'text/ecmascript' },
            '<![CDATA[var instructions=' +
            JSON.stringify(this.input.instructions) +
            ']]>');
