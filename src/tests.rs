@@ -38,7 +38,7 @@ impl KindHelper for Kind {
     match self {
       &BranchIfBigger if i == 0 => UseFixed(2),
       &JustUse => UseFixed(1),
-      &Print => UseRegister,
+      &Print => UseFixed(3),
       &Return => UseFixed(0),
       _ => UseAny
     }

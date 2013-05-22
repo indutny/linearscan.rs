@@ -3,7 +3,7 @@ use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister,
 use std::bitv::BitvSet;
 
 pub trait Liveness {
-  fn build_liveranges(&mut self, blocks: &[BlockId]);
+  fn build_liveranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;
 }
 
 trait LivenessHelper {
@@ -14,14 +14,14 @@ trait LivenessHelper {
   fn build_global(&mut self, blocks: &[BlockId]);
 
   // Build live ranges
-  fn build_ranges(&mut self, blocks: &[BlockId]);
+  fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;
 }
 
 impl<K: KindHelper+Copy+ToStr> Liveness for Graph<K> {
-  fn build_liveranges(&mut self, blocks: &[BlockId]) {
+  fn build_liveranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str> {
     self.build_local(blocks);
     self.build_global(blocks);
-    self.build_ranges(blocks);
+    return self.build_ranges(blocks);
   }
 }
 
@@ -81,7 +81,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
     }
   }
 
-  fn build_ranges(&mut self, blocks: &[BlockId]) {
+  fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str> {
     let physical = copy self.physical;
     for blocks.each_reverse() |block_id| {
       let instructions = copy self.get_block(block_id).instructions;
@@ -137,9 +137,15 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         }
 
         // Process temporary
-        for instr.temporary.each() |tmp| {
-          self.get_interval(tmp).add_range(instr_id, instr_id + 1);
-          self.get_interval(tmp).add_use(UseRegister, instr_id);
+        if instr.kind.is_call() {
+          if instr.temporary.len() != 0 {
+            return Err(~"Call instruction can't have temporary registers");
+          }
+        } else {
+          for instr.temporary.each() |tmp| {
+            self.get_interval(tmp).add_range(instr_id, instr_id + 1);
+            self.get_interval(tmp).add_use(UseRegister, instr_id);
+          }
         }
 
         // Process inputs
@@ -155,5 +161,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         }
       }
     }
+
+    return Ok(());
   }
 }

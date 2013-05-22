@@ -68,10 +68,10 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
     let list = self.flatten();
 
     // Build live_in/live_out
-    self.build_liveranges(list);
-
-    // Walk intervals!
-    return self.walk_intervals(config);
+    return do self.build_liveranges(list).chain() |_| {
+      // Walk intervals!
+      self.walk_intervals(config)
+    };
   }
 }
 
