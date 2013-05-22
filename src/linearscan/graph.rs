@@ -102,6 +102,11 @@ pub trait KindHelper {
   fn result_kind(&self) -> Option<UseKind>;
 }
 
+pub enum Direction {
+  LeftToRight,
+  RightToLeft
+}
+
 pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   fn new() -> Graph<K> {
     Graph {
@@ -201,7 +206,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return None;
   }
 
-  fn split_at(&mut self, id: &IntervalId, pos: InstrId, before: bool)
+  fn split_at(&mut self, id: &IntervalId, pos: InstrId, dir: Direction)
       -> IntervalId {
     // We should always make progress
     assert!(self.intervals.get(id).start() < pos);
@@ -224,10 +229,9 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     }
 
     // Add child
-    if before {
-      self.get_interval(&parent).children.unshift(child);
-    } else {
-      self.get_interval(&parent).children.push(child);
+    match dir {
+      RightToLeft => self.get_interval(&parent).children.unshift(child),
+      LeftToRight => self.get_interval(&parent).children.push(child)
     }
     self.get_interval(&child).parent = Some(parent);
 

@@ -1,5 +1,5 @@
 use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister,
-                        InstrKind, ToPhi};
+                        InstrKind, ToPhi, RightToLeft};
 use std::bitv::BitvSet;
 
 pub trait Liveness {
@@ -150,7 +150,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
           let kind = instr.kind.use_kind(i);
           self.get_interval(input).add_use(kind, instr_id);
           if kind.is_fixed() && instr_id < self.intervals.get(input).end() {
-            self.split_at(input, instr_id, true);
+            self.split_at(input, instr_id, RightToLeft);
           }
         }
       }

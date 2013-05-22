@@ -1,6 +1,6 @@
 use linearscan::graph::{Graph, KindHelper, Interval,
                         IntervalId, InstrId, RegisterId,
-                        UseFixed,
+                        UseFixed, LeftToRight,
                         Value, Register, Stack};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
@@ -403,7 +403,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     let split_pos = self.optimal_split_pos(start, end);
     assert!(start <= split_pos && split_pos <= end);
 
-    let res = self.split_at(&current, split_pos, false);
+    let res = self.split_at(&current, split_pos, LeftToRight);
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
@@ -434,7 +434,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     // Split and spill!
     for to_split.each() |id| {
       // Spill after start of `current`
-      let spill_child = self.split_at(id, start, false);
+      let spill_child = self.split_at(id, start, LeftToRight);
       self.get_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position
