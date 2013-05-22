@@ -21,11 +21,11 @@ struct AllocatorState {
 
 pub trait Allocator {
   // Allocate registers
-  pub fn allocate(&mut self, config: Config);
+  pub fn allocate(&mut self, config: Config) -> Result<(), ~str>;
 }
 
 trait AllocatorHelper {
-  fn walk_intervals(&mut self, config: Config);
+  fn walk_intervals(&mut self, config: Config) -> Result<(), ~str>;
   fn each_active<'r>(&'r self,
                      state: &'r AllocatorState,
                      f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool;
@@ -40,7 +40,8 @@ trait AllocatorHelper {
                            state: &'r mut AllocatorState) -> bool;
   fn allocate_blocked_reg<'r>(&'r mut self,
                               current: IntervalId,
-                              state: &'r mut AllocatorState);
+                              state: &'r mut AllocatorState)
+      -> Result<(), ~str>;
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
   fn optimal_split_pos(&self, start: InstrId, end: InstrId) -> InstrId;
   fn split_between<'r>(&'r mut self,
@@ -54,7 +55,7 @@ trait AllocatorHelper {
 }
 
 impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
-  pub fn allocate(&mut self, config: Config) {
+  pub fn allocate(&mut self, config: Config) -> Result<(), ~str> {
     // Create physical fixed intervals
     for uint::range(0, config.register_count) |i| {
       let interval = Interval::new(self);
@@ -70,12 +71,12 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
     self.build_liveranges(list);
 
     // Walk intervals!
-    self.walk_intervals(config);
+    return self.walk_intervals(config);
   }
 }
 
 impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
-  fn walk_intervals(&mut self, config: Config) {
+  fn walk_intervals(&mut self, config: Config) -> Result<(), ~str> {
     let mut state = ~AllocatorState {
       config: config,
       spill_count: 0,
@@ -138,7 +139,12 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         // Allocate free register
         if !self.allocate_free_reg(current, state) {
           // Or spill some active register
-          self.allocate_blocked_reg(current, state);
+          match self.allocate_blocked_reg(current, state) {
+            Ok(_) => (),
+            Err(err) => {
+              return Err(err);
+            }
+          }
         }
       }
 
@@ -148,6 +154,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         _ => ()
       }
     }
+
+    return Ok(());
   }
 
   fn each_active<'r>(&'r self,
@@ -261,7 +269,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
 
   fn allocate_blocked_reg<'r>(&'r mut self,
                               current: IntervalId,
-                              state: &'r mut AllocatorState) {
+                              state: &'r mut AllocatorState)
+      -> Result<(), ~str> {
     let mut use_pos = vec::from_elem(state.config.register_count,
                                      uint::max_value);
     let mut block_pos = vec::from_elem(state.config.register_count,
@@ -338,6 +347,10 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     match first_use {
       Some(u) => {
         if max_pos < u.pos {
+          if u.pos == start {
+            return Err(~"Incorrect input, allocation impossible");
+          }
+
           // Spill current itself
           self.get_interval(&current).value = state.get_spill();
 
@@ -362,6 +375,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         self.get_interval(&current).value = state.get_spill();
       }
     }
+    return Ok(());
   }
 
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState) {
