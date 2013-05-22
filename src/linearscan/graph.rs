@@ -57,7 +57,7 @@ pub struct Instruction<K> {
 #[deriving(ToStr)]
 pub enum InstrKind<K> {
   User(K),
-  Move,
+  Gap,
   Phi,
   ToPhi
 }
@@ -504,7 +504,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn is_call(&self) -> bool {
     match self {
       &User(ref k) => k.is_call(),
-      &Move => false,
+      &Gap => false,
       &ToPhi => false,
       &Phi => false
     }
@@ -513,7 +513,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn tmp_count(&self) -> uint {
     match self {
       &User(ref k) => k.tmp_count(),
-      &Move => 1,
+      &Gap => 0,
       &Phi => 0,
       &ToPhi => 0
     }
@@ -522,7 +522,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
       &User(ref k) => k.use_kind(i),
-      &Move => UseAny,
+      &Gap => UseAny,
       &Phi => UseAny,
       &ToPhi => UseAny
     }
@@ -531,7 +531,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn result_kind(&self) -> Option<UseKind> {
     match self {
       &User(ref k) => k.result_kind(),
-      &Move => None,
+      &Gap => None,
       &Phi => Some(UseAny),
       &ToPhi => Some(UseAny)
     }
