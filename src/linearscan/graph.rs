@@ -214,7 +214,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     // Move out ranges
     let mut child_ranges =  ~[];
     let mut range_split = false;
-    let parent_ranges =
+    let mut parent_ranges =
         do self.intervals.get(&split_parent).ranges.filter_mapped |range| {
       if range.end <= pos {
         Some(*range)
@@ -238,6 +238,14 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     // Ensure that at least one range is always present
     if child_ranges.len() == 0 {
       child_ranges.push(LiveRange { start: pos, end: pos });
+    }
+    if parent_ranges.len() == 0 {
+      let start = self.intervals.get(&split_parent).start();
+      let end = self.intervals.get(&split_parent).end();
+      parent_ranges.push(LiveRange {
+        start: start,
+        end: if end < pos { end } else { pos }
+      });
     }
     self.get_interval(&child).ranges = child_ranges;
     self.get_interval(&split_parent).ranges = parent_ranges;

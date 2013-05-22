@@ -42,6 +42,7 @@ trait AllocatorHelper {
                               current: IntervalId,
                               state: &'r mut AllocatorState);
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
+  fn optimal_split_pos(&self, start: InstrId, end: InstrId) -> InstrId;
   fn split_between<'r>(&'r mut self,
                        current: IntervalId,
                        start: InstrId,
@@ -352,13 +353,31 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     };
   }
 
+  fn optimal_split_pos(&self, start: InstrId, end: InstrId) -> InstrId {
+    for self.blocks.each() |_, block| {
+      let block_from = *block.instructions.head();
+      let block_to = *block.instructions.last();
+
+      if start <= end && end < block_to {
+        return if block_from >= start {
+          block_from
+        } else {
+          end
+        }
+      }
+    }
+    return end;
+  }
+
   fn split_between<'r>(&'r mut self,
                        current: IntervalId,
                        start: InstrId,
                        end: InstrId,
                        state: &'r mut AllocatorState) -> IntervalId {
-    // TODO(indutny) split at block edges if possible
-    let res = self.split_at(&current, end);
+    let split_pos = self.optimal_split_pos(start, end);
+    assert!(start <= split_pos && split_pos <= end);
+
+    let res = self.split_at(&current, split_pos);
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
