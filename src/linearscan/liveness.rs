@@ -87,7 +87,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
       let instructions = copy self.get_block(block_id).instructions;
       let live_out = copy self.get_block(block_id).live_out;
       let block_from = *instructions.head();
-      let block_to = instructions.last() + 2;
+      let block_to = instructions.last() + 1;
 
       // Assume that each live_out interval lives for the whole time of block
       // NOTE: we'll shorten it later if definition of this interval appears to
@@ -144,10 +144,14 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
 
         // Process inputs
         for instr.inputs.eachi() |i, input| {
-          if !live_out.contains(input) {
+          if !self.intervals.get(input).covers(instr_id) {
             self.get_interval(input).add_range(block_from, instr_id);
           }
-          self.get_interval(input).add_use(instr.kind.use_kind(i), instr_id);
+          let kind = instr.kind.use_kind(i);
+          self.get_interval(input).add_use(kind, instr_id);
+          if kind.is_fixed() && instr_id < self.intervals.get(input).end() {
+            self.split_at(input, instr_id, true);
+          }
         }
       }
     }

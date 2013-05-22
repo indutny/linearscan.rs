@@ -134,23 +134,38 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
   }
 
   fn flatten_reindex_instructions(&mut self, list: &[BlockId]) {
-    let mut instr_id = 0;
+    self.instr_id = 0;
     let mut queue = ~[];
     for list.each() |block| {
       let list = copy self.get_block(block).instructions;
       let mut new_list = ~[];
+      let start_gap = self.create_gap(block);
+      new_list.push(start_gap.id);
+      queue.push(start_gap);
 
-      for list.each() |id| {
+      for list.eachi() |i, id| {
         // Pop each instruction from map
         let mut instr = self.instructions.pop(id).unwrap();
         // And update its id
-        instr.id = instr_id;
+        instr.id = self.instr_id;
+        self.instr_id += 1;
 
         // Construct new block instructions list and insert instruction into
         // new map
         new_list.push(instr.id);
         queue.push(instr);
-        instr_id += 2;
+
+        // Insert gap
+        if i != list.len() - 1 {
+          let gap = self.create_gap(block);
+          new_list.push(gap.id);
+          queue.push(gap);
+        }
+      }
+      if list.len() != 0 {
+        let end_gap = self.create_gap(block);
+        new_list.push(end_gap.id);
+        queue.push(end_gap);
       }
 
       // Replace block's instruction list

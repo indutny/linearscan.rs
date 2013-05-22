@@ -10,6 +10,7 @@ enum Kind {
   Phi,
   Increment,
   BranchIfBigger,
+  JustUse,
   Print,
   Zero,
   Ten,
@@ -32,8 +33,10 @@ impl KindHelper for Kind {
     }
   }
 
-  fn use_kind(&self, _: uint) -> UseKind {
+  fn use_kind(&self, i: uint) -> UseKind {
     match self {
+      &BranchIfBigger if i == 0 => UseFixed(2),
+      &JustUse => UseFixed(1),
       &Print => UseRegister,
       &Return => UseFixed(0),
       _ => UseAny
@@ -45,6 +48,7 @@ impl KindHelper for Kind {
       &Goto => None,
       &Return => None,
       &BranchIfBigger => None,
+      &JustUse => None,
       _ => Some(UseRegister)
     }
   }
@@ -82,6 +86,7 @@ fn realword_example() {
 
     do g.with_block(cond) |b| {
       let ten = b.add(Ten, ~[]);
+      b.add(JustUse, ~[phi]);
       b.add(BranchIfBigger, ~[phi, ten]);
       b.branch(left, right);
     };

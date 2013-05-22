@@ -153,6 +153,18 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return Instruction::new(self, User(kind), args);
   }
 
+  fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
+    return ~Instruction {
+      id: self.instr_id(),
+      block: *block,
+      kind: Gap,
+      output: None,
+      inputs: ~[],
+      temporary: ~[],
+      added: true
+    };
+  }
+
   fn set_root(&mut self, id: BlockId) {
     self.root = id;
   }
@@ -189,7 +201,11 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return None;
   }
 
-  fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
+  fn split_at(&mut self, id: &IntervalId, pos: InstrId, before: bool)
+      -> IntervalId {
+    // We should always make progress
+    assert!(self.intervals.get(id).start() < pos);
+
     let child = Interval::new(self);
     let parent = match self.get_interval(id).parent {
       Some(parent) => parent,
@@ -208,7 +224,11 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     }
 
     // Add child
-    self.get_interval(&parent).children.push(child);
+    if before {
+      self.get_interval(&parent).children.unshift(child);
+    } else {
+      self.get_interval(&parent).children.push(child);
+    }
     self.get_interval(&child).parent = Some(parent);
 
     // Move out ranges
@@ -468,6 +488,10 @@ pub impl Interval {
     return self.ranges.last().end;
   }
 
+  fn can_be_split(&self) -> bool {
+    return self.start() + 1 < self.end();
+  }
+
   fn covers(&self, pos: InstrId) -> bool {
     return do self.uses.any() |u| {
       u.pos == pos
@@ -546,11 +570,28 @@ impl LiveRange {
   fn get_intersection(&self, other: &LiveRange) -> Option<InstrId> {
     if self.covers(other.start) {
       return Some(other.start);
-    } else if self.covers(other.end) ||
-              other.start < self.start && self.end <= other.end {
+    } else if other.start < self.start && self.start < other.end {
       return Some(self.start);
     }
     return None;
+  }
+}
+
+impl Value {
+  fn is_virtual(&self) -> bool {
+    match self {
+      &Virtual => true,
+      _ => false
+    }
+  }
+}
+
+impl UseKind {
+  fn is_fixed(&self) -> bool {
+    match self {
+      &UseFixed(_) => true,
+      _ => false
+    }
   }
 }
 

@@ -69,6 +69,7 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
     // Build live_in/live_out
     self.build_liveranges(list);
 
+    // Walk intervals!
     self.walk_intervals(config);
   }
 }
@@ -132,14 +133,17 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         state.to_handled(*v)
       }
 
-      // Allocate free register
-      if !self.allocate_free_reg(current, state) {
-        // Or spill some active register
-        self.allocate_blocked_reg(current, state);
+      // Skip non-virtual intervals
+      if self.intervals.get(&current).value.is_virtual() {
+        // Allocate free register
+        if !self.allocate_free_reg(current, state) {
+          // Or spill some active register
+          self.allocate_blocked_reg(current, state);
+        }
       }
 
       // Push register interval to active
-      match self.get_interval(&current).value {
+      match self.intervals.get(&current).value {
         Register(_) => state.active.push(current),
         _ => ()
       }
@@ -225,14 +229,31 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       return false;
     }
 
+    // Give register
     self.get_interval(&current).value = Register(reg);
-    if max_pos > self.get_interval(&current).end() {
+
+    let start = self.intervals.get(&current).start();
+    let end = self.intervals.get(&current).end();
+    if max_pos > end {
       // Register is available for whole current's lifetime
     } else {
       // Register is available for some part of current's lifetime
-      assert!(max_pos < self.get_interval(&current).end());
-      let start = self.get_interval(&current).start();
-      self.split_between(current, start, max_pos, state);
+      assert!(max_pos < end);
+
+      let first_pos = if self.instructions.get(&max_pos).kind.is_call() {
+        max_pos
+      } else {
+        start
+      };
+      let child = self.split_between(current, first_pos, max_pos, state);
+
+      // Spill child if there're no register uses after split
+      match self.intervals.get(&child).next_use(0) {
+        None => {
+          self.get_interval(&child).value = state.get_spill();
+        },
+        _ => ()
+      }
     }
 
     return true;
@@ -354,12 +375,17 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
   }
 
   fn optimal_split_pos(&self, start: InstrId, end: InstrId) -> InstrId {
+    // Fast and unfortunate case
+    if start == end {
+      return end;
+    }
+
     for self.blocks.each() |_, block| {
       let block_from = *block.instructions.head();
       let block_to = *block.instructions.last();
 
       if start <= end && end < block_to {
-        return if block_from >= start {
+        return if block_from > start {
           block_from
         } else {
           end
@@ -377,7 +403,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     let split_pos = self.optimal_split_pos(start, end);
     assert!(start <= split_pos && split_pos <= end);
 
-    let res = self.split_at(&current, split_pos);
+    let res = self.split_at(&current, split_pos, false);
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
@@ -408,7 +434,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     // Split and spill!
     for to_split.each() |id| {
       // Spill after start of `current`
-      let spill_child = self.split_at(id, start);
+      let spill_child = self.split_at(id, start, false);
       self.get_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position
