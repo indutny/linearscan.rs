@@ -57,7 +57,7 @@ pub struct Instruction<K> {
 #[deriving(ToStr)]
 pub enum InstrKind<K> {
   User(K),
-  Gap(GapState),
+  Gap,
   Phi,
   ToPhi
 }
@@ -94,8 +94,6 @@ pub struct LiveRange {
   start: InstrId,
   end: InstrId
 }
-
-pub struct GapState;
 
 pub trait KindHelper {
   fn is_call(&self) -> bool;
@@ -159,7 +157,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return ~Instruction {
       id: self.instr_id(),
       block: *block,
-      kind: Gap(GapState::new()),
+      kind: Gap,
       output: None,
       inputs: ~[],
       temporary: ~[],
@@ -209,7 +207,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
     // Split could be either at gap or at call
     assert!(match self.instructions.get(&pos).kind {
-      Gap(_) => true,
+      Gap => true,
       other => other.is_call()
     });
 
@@ -519,7 +517,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn is_call(&self) -> bool {
     match self {
       &User(ref k) => k.is_call(),
-      &Gap(_) => false,
+      &Gap => false,
       &ToPhi => false,
       &Phi => false
     }
@@ -528,7 +526,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn tmp_count(&self) -> uint {
     match self {
       &User(ref k) => k.tmp_count(),
-      &Gap(_) => 0,
+      &Gap => 0,
       &Phi => 0,
       &ToPhi => 0
     }
@@ -537,7 +535,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
       &User(ref k) => k.use_kind(i),
-      &Gap(_) => UseAny,
+      &Gap => UseAny,
       &Phi => UseAny,
       &ToPhi => UseAny
     }
@@ -546,7 +544,7 @@ impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
   fn result_kind(&self) -> Option<UseKind> {
     match self {
       &User(ref k) => k.result_kind(),
-      &Gap(_) => None,
+      &Gap => None,
       &Phi => Some(UseAny),
       &ToPhi => Some(UseAny)
     }
@@ -583,12 +581,6 @@ impl UseKind {
       &UseFixed(_) => true,
       _ => false
     }
-  }
-}
-
-impl GapState {
-  fn new() -> GapState {
-    GapState
   }
 }
 

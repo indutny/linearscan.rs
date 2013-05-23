@@ -305,21 +305,18 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     var res = '';
     if (instr.output !== null)
       res += interval_to_str(instr.output) + ' = ';
-    res += instr.kind;
-    if (!/^~gap/.test(instr.kind)) {
-      res += '(';
-      instr.inputs.forEach(function(input, i) {
-        res += interval_to_str(input);
-        if (i !== instr.inputs.length - 1) res += ', ';
+    res += instr.kind + '(';
+    instr.inputs.forEach(function(input, i) {
+      res += interval_to_str(input);
+      if (i !== instr.inputs.length - 1) res += ', ';
+    });
+    res += ')';
+    if (instr.temporary.length > 0) {
+      res += ' | tmp: ';
+      instr.temporary.forEach(function(tmp, i) {
+        res += interval_to_str(tmp);
+        if (i !== instr.temporary.length - 1) res += ', ';
       });
-      res += ')';
-      if (instr.temporary.length > 0) {
-        res += ' | tmp: ';
-        instr.temporary.forEach(function(tmp, i) {
-          res += interval_to_str(tmp);
-          if (i !== instr.temporary.length - 1) res += ', ';
-        });
-      }
     }
     return res;
   }
