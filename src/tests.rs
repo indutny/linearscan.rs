@@ -60,7 +60,11 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
   body(&mut *g);
 
   g.allocate(Config { register_count: 4 }).get();
-  io::println(g.to_json().to_str());
+  let writer = io::file_writer(&Path("./1.json"), ~[io::Create, io::Truncate]);
+  match writer {
+    Ok(writer) => writer.write_str(g.to_json().to_str()),
+    Err(_) => ()
+  };
 }
 
 #[test]
