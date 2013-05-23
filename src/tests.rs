@@ -29,7 +29,6 @@ impl KindHelper for Kind {
   fn tmp_count(&self) -> uint {
     match self {
       &BranchIfBigger => 1,
-      &Print => 1,
       _ => 0
     }
   }
