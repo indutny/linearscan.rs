@@ -175,6 +175,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         u.kind.is_fixed()
       };
 
+      // TODO(indutny) handle bad cases
       for uses.each() |u| {
         let pos = if u.pos == start {
           if start + 1 < end {
@@ -182,7 +183,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
           } else {
             None
           }
-        } else if u.pos == end {
+        } else if u.pos == end || self.instructions.get(&u.pos).kind.is_call() {
           if end > start + 1 {
             Some(u.pos - 1)
           } else {
