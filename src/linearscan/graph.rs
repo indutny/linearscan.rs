@@ -194,6 +194,10 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     self.intervals.find_mut(id).unwrap()
   }
 
+  fn get_gap<'r>(&'r mut self, id: &InstrId) -> &'r mut ~GapState {
+    self.gaps.find_mut(id).unwrap()
+  }
+
   fn get_next_intersection(&self,
                            a: &IntervalId,
                            b: &IntervalId) -> Option<InstrId> {
@@ -602,6 +606,12 @@ impl UseKind {
       &UseFixed(_) => true,
       _ => false
     }
+  }
+}
+
+pub impl GapState {
+  fn add_move(&mut self, from: &InstrId, to: &InstrId) {
+    self.moves.push(GapMove { from: *from, to: *to });
   }
 }
 
