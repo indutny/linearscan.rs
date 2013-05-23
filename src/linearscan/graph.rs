@@ -205,6 +205,12 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     // We should always make progress
     assert!(self.intervals.get(id).start() < pos);
 
+    // Split could be either at gap or at call
+    assert!(match self.instructions.get(&pos).kind {
+      Gap => true,
+      other => other.is_call()
+    });
+
     let child = Interval::new(self);
     let parent = match self.get_interval(id).parent {
       Some(parent) => parent,
@@ -484,7 +490,7 @@ pub impl Interval {
   }
 
   fn add_use(&mut self, kind: UseKind, pos: InstrId) {
-    self.uses.push(Use { kind: kind, pos: pos });
+    self.uses.unshift(Use { kind: kind, pos: pos });
   }
 
   fn next_fixed_use(&self, after: InstrId) -> Option<Use> {

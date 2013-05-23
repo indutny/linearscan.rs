@@ -168,6 +168,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
       }
     }
     for list.each() |id| {
+      let mut cur = *id;
       let start = self.intervals.get(id).start();
       let end = self.intervals.get(id).end();
 
@@ -175,7 +176,6 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         u.kind.is_fixed()
       };
 
-      // TODO(indutny) handle bad cases
       for uses.each() |u| {
         let pos = if u.pos == start {
           if start + 1 < end {
@@ -183,20 +183,19 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
           } else {
             None
           }
-        } else if u.pos == end || self.instructions.get(&u.pos).kind.is_call() {
-          if end > start + 1 {
+        } else {
+          if u.pos > start + 1 {
             Some(u.pos - 1)
           } else {
             None
           }
-        } else {
-          Some(u.pos)
         };
 
         match pos {
-          Some(pos) if self.intervals.get(id).covers(pos) => {
-            self.split_at(id, pos);
+          Some(pos) if self.intervals.get(&cur).covers(pos) => {
+            cur = self.split_at(id, pos);
           },
+          // TODO(indutny) handle bad cases
           _ => ()
         }
       };
