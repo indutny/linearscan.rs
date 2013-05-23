@@ -102,11 +102,6 @@ pub trait KindHelper {
   fn result_kind(&self) -> Option<UseKind>;
 }
 
-pub enum Direction {
-  LeftToRight,
-  RightToLeft
-}
-
 pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   fn new() -> Graph<K> {
     Graph {
@@ -206,8 +201,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return None;
   }
 
-  fn split_at(&mut self, id: &IntervalId, pos: InstrId, dir: Direction)
-      -> IntervalId {
+  fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
     // We should always make progress
     assert!(self.intervals.get(id).start() < pos);
 
@@ -229,22 +223,17 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     }
 
     // Add child
-    match dir {
-      RightToLeft => self.get_interval(&parent).children.unshift(child),
-      LeftToRight => self.get_interval(&parent).children.push(child)
-    }
+    self.get_interval(&parent).children.push(child);
     self.get_interval(&child).parent = Some(parent);
 
     // Move out ranges
     let mut child_ranges =  ~[];
-    let mut range_split = false;
-    let mut parent_ranges =
+    let parent_ranges =
         do self.intervals.get(&split_parent).ranges.filter_mapped |range| {
       if range.end <= pos {
         Some(*range)
       } else if range.start < pos {
         // Split required
-        range_split = true;
         child_ranges.push(LiveRange {
           start: pos,
           end: range.end
@@ -260,25 +249,17 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     };
 
     // Ensure that at least one range is always present
-    if child_ranges.len() == 0 {
-      child_ranges.push(LiveRange { start: pos, end: pos });
-    }
-    if parent_ranges.len() == 0 {
-      let start = self.intervals.get(&split_parent).start();
-      let end = self.intervals.get(&split_parent).end();
-      parent_ranges.push(LiveRange {
-        start: start,
-        end: if end < pos { end } else { pos }
-      });
-    }
+    assert!(child_ranges.len() != 0);
+    assert!(parent_ranges.len() != 0);
     self.get_interval(&child).ranges = child_ranges;
     self.get_interval(&split_parent).ranges = parent_ranges;
 
     // Move out uses
     let mut child_uses =  ~[];
+    let split_on_call = self.instructions.get(&pos).kind.is_call();
     let parent_uses =
         do self.intervals.get(&split_parent).uses.filter_mapped |u| {
-      if range_split && u.pos <= pos || !range_split && u.pos < pos {
+      if split_on_call && u.pos <= pos || !split_on_call && u.pos < pos {
         Some(*u)
       } else {
         child_uses.push(*u);
@@ -497,9 +478,7 @@ pub impl Interval {
   }
 
   fn covers(&self, pos: InstrId) -> bool {
-    return do self.uses.any() |u| {
-      u.pos == pos
-    } || do self.ranges.any() |range| {
+    return do self.ranges.any() |range| {
       range.covers(pos)
     };
   }

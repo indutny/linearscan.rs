@@ -10,6 +10,7 @@ enum Kind {
   Phi,
   Increment,
   BranchIfBigger,
+  AB,
   JustUse,
   Print,
   Zero,
@@ -36,6 +37,7 @@ impl KindHelper for Kind {
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
       &BranchIfBigger if i == 0 => UseFixed(2),
+      &AB => UseFixed(i),
       &JustUse => UseFixed(1),
       &Print => UseFixed(3),
       &Return => UseFixed(0),
@@ -49,6 +51,7 @@ impl KindHelper for Kind {
       &Return => None,
       &BranchIfBigger => None,
       &JustUse => None,
+      &AB => None,
       _ => Some(UseRegister)
     }
   }
@@ -60,7 +63,7 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
   body(&mut *g);
 
   g.allocate(Config { register_count: 4 }).get();
-  let writer = io::file_writer(&Path("./1.json"), ~[io::Create, io::Truncate]);
+  let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
   match writer {
     Ok(writer) => writer.write_str(g.to_json().to_str()),
     Err(_) => ()
@@ -111,6 +114,21 @@ fn realword_example() {
 
     do g.with_block(right) |b| {
       b.add(Return, ~[ret]);
+      b.end();
+    };
+  };
+}
+
+// #[test]
+fn ab_ba() {
+  do graph_test() |g| {
+    do g.block() |b| {
+      b.make_root();
+
+      let ten = b.add(Ten, ~[]);
+      let zero = b.add(Zero, ~[]);
+      b.add(AB, ~[ten, zero]);
+      b.add(AB, ~[zero, ten]);
       b.end();
     };
   };

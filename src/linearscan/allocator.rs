@@ -1,6 +1,6 @@
 use linearscan::graph::{Graph, KindHelper, Interval,
                         IntervalId, InstrId, RegisterId,
-                        UseFixed, LeftToRight,
+                        UseFixed,
                         Value, Register, Stack};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
@@ -249,12 +249,20 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       // Register is available for some part of current's lifetime
       assert!(max_pos < end);
 
-      // Splitting right before `call` instruction is pointless,
-      // spill current instead.
-      let split_pos = self.optimal_split_pos(start, max_pos);
+      let mut split_pos = self.optimal_split_pos(start, max_pos);
       if split_pos == max_pos - 1 &&
          self.instructions.get(&max_pos).kind.is_call() {
-        return false;
+        // Splitting right before `call` instruction is pointless,
+        // unless we have a register use at that instruction,
+        // try spilling current instead.
+        match self.intervals.get(&current).next_use(max_pos) {
+          Some(u) if u.pos == max_pos => {
+            split_pos = max_pos;
+          },
+          _ => {
+            return false;
+          }
+        }
       }
       let child = self.split(current, At(split_pos), state);
 
@@ -426,7 +434,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       At(pos) => pos
     };
 
-    let res = self.split_at(&current, split_pos, LeftToRight);
+    let res = self.split_at(&current, split_pos);
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
@@ -457,7 +465,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     // Split and spill!
     for to_split.each() |id| {
       // Spill after start of `current`
-      let spill_child = self.split_at(id, start, LeftToRight);
+      let spill_child = self.split_at(id, start);
       self.get_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position

@@ -1,5 +1,4 @@
-use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister,
-                        InstrKind, ToPhi, RightToLeft};
+use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister};
 use extra::bitv::BitvSet;
 
 pub trait Liveness {
@@ -15,13 +14,19 @@ trait LivenessHelper {
 
   // Build live ranges
   fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;
+
+  // Split intervals with fixed uses
+  fn split_fixed(&mut self);
 }
 
 impl<K: KindHelper+Copy+ToStr> Liveness for Graph<K> {
   fn build_liveranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str> {
     self.build_local(blocks);
     self.build_global(blocks);
-    return self.build_ranges(blocks);
+    return do self.build_ranges(blocks).chain() |_| {
+      self.split_fixed();
+      Ok(())
+    };
   }
 }
 
@@ -109,15 +114,8 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         // Process output
         match instr.output {
           Some(output) => {
-            fn defines_after<K: KindHelper+Copy+ToStr>(kind: &InstrKind<K>)
-                -> bool {
-              match kind {
-                &ToPhi => true,
-                _ => kind.is_call()
-              }
-            }
-
-            let pos = if defines_after(&instr.kind) {
+            // Call instructions are defining their value after the call
+            let pos = if instr.kind.is_call() {
               instr_id + 1
             } else {
               instr_id
@@ -155,13 +153,52 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
           }
           let kind = instr.kind.use_kind(i);
           self.get_interval(input).add_use(kind, instr_id);
-          if kind.is_fixed() && instr_id < self.intervals.get(input).end() {
-            self.split_at(input, instr_id, RightToLeft);
-          }
         }
       }
     }
 
     return Ok(());
+  }
+
+  fn split_fixed(&mut self) {
+    let mut list = ~[];
+    for self.intervals.each() |_, interval| {
+      if interval.uses.any(|u| { u.kind.is_fixed() }) {
+        list.push(interval.id);
+      }
+    }
+    for list.each() |id| {
+      let start = self.intervals.get(id).start();
+      let end = self.intervals.get(id).end();
+
+      let uses = do (copy self.intervals.get(id).uses).filter |u| {
+        u.kind.is_fixed()
+      };
+
+      for uses.each() |u| {
+        let pos = if u.pos == start {
+          if start + 1 < end {
+            Some(u.pos + 1)
+          } else {
+            None
+          }
+        } else if u.pos == end {
+          if end > start + 1 {
+            Some(u.pos - 1)
+          } else {
+            None
+          }
+        } else {
+          Some(u.pos)
+        };
+
+        match pos {
+          Some(pos) if self.intervals.get(id).covers(pos) => {
+            self.split_at(id, pos);
+          },
+          _ => ()
+        }
+      };
+    }
   }
 }

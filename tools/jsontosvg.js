@@ -444,7 +444,7 @@ Converter.prototype.drawInterval = function drawInterval(interval, i) {
   [ parent ].concat(parent.children.map(function(c) {
     return self.input.intervals[c];
   })).reduce(function(start, i) {
-    var end = i.ranges[i.ranges.length - 1].end;
+    var end = i.ranges.length === 0 ? Infinity : i.ranges[i.ranges.length - 1].end;
     edges.push({ id: i.id, start: start, end: end });
     return end;
   }, 0);
