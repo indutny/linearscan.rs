@@ -4,7 +4,7 @@ use linearscan::graph::{Graph, KindHelper, Interval,
                         Value, Register, Stack};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
-use std::sort::quick_sort;
+use extra::sort::quick_sort;
 
 pub struct Config {
   register_count: RegisterId

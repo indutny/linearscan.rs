@@ -1,5 +1,5 @@
-use std::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
-use core::hashmap::HashMap;
+use extra::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
+use std::hashmap::HashMap;
 use linearscan::graph::{Graph, Block, Instruction, Interval, LiveRange,
                         User, Gap, ToPhi, Phi,
                         Use, UseAny, UseRegister, UseFixed,

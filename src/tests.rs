@@ -1,8 +1,8 @@
-extern mod std;
+extern mod extra;
 
 use linearscan::{Allocator, Config, Graph, KindHelper,
                  UseKind, UseAny, UseRegister, UseFixed};
-use std::json::ToJson;
+use extra::json::ToJson;
 mod linearscan;
 
 #[deriving(Eq, ToStr)]

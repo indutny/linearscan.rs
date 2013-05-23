@@ -1,6 +1,6 @@
 use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister,
                         InstrKind, ToPhi, RightToLeft};
-use std::bitv::BitvSet;
+use extra::bitv::BitvSet;
 
 pub trait Liveness {
   fn build_liveranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;

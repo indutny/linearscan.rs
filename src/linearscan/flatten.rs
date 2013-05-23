@@ -1,5 +1,5 @@
-use std::smallintmap::SmallIntMap;
-use std::bitv::BitvSet;
+use extra::smallintmap::SmallIntMap;
+use extra::bitv::BitvSet;
 use linearscan::graph::{Graph, BlockId, KindHelper};
 
 struct MapResult {
