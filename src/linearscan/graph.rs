@@ -15,6 +15,7 @@ pub struct Graph<K> {
   intervals: ~SmallIntMap<~Interval>,
   blocks: ~SmallIntMap<~Block<K> >,
   instructions: ~SmallIntMap<~Instruction<K> >,
+  gaps: ~SmallIntMap<~GapState>,
   physical: ~[IntervalId]
 }
 
@@ -95,6 +96,15 @@ pub struct LiveRange {
   end: InstrId
 }
 
+pub struct GapState {
+  moves: ~[GapMove]
+}
+
+pub struct GapMove {
+  from: IntervalId,
+  to: IntervalId
+}
+
 pub trait KindHelper {
   fn is_call(&self) -> bool;
   fn tmp_count(&self) -> uint;
@@ -112,6 +122,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
       intervals: ~SmallIntMap::new(),
       blocks: ~SmallIntMap::new(),
       instructions: ~SmallIntMap::new(),
+      gaps: ~SmallIntMap::new(),
       physical: ~[]
     }
   }
@@ -154,8 +165,10 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   }
 
   fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
+    let id = self.instr_id();
+    self.gaps.insert(id, ~GapState { moves: ~[] });
     return ~Instruction {
-      id: self.instr_id(),
+      id: id,
       block: *block,
       kind: Gap,
       output: None,

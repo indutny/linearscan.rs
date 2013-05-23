@@ -1,7 +1,7 @@
 use extra::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
 use std::hashmap::HashMap;
 use linearscan::graph::{Graph, Block, Instruction, Interval, LiveRange,
-                        User, Gap, ToPhi, Phi,
+                        User, Gap, GapState, ToPhi, Phi,
                         Use, UseAny, UseRegister, UseFixed,
                         Value, Virtual, Register, Stack, KindHelper};
 
@@ -52,6 +52,21 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
       Some(output) => Number(output as float),
       None => Null
     });
+
+    return Object(obj);
+  }
+}
+
+impl ToJson for GapState {
+  fn to_json(&self) -> Json {
+    let mut obj = ~HashMap::new();
+
+    obj.insert(~"moves", List(do self.moves.map() |move| {
+      let mut obj = ~HashMap::new();
+      obj.insert(~"from", Number(move.from as float));
+      obj.insert(~"to", Number(move.to as float));
+      Object(obj)
+    }));
 
     return Object(obj);
   }
@@ -149,7 +164,19 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
     let mut result = ~HashMap::new();
 
     for self.instructions.each() |id, instruction| {
-      result.insert(id.to_str(), instruction.to_json());
+      let mut obj = match instruction.to_json() {
+        Object(obj) => obj,
+        _ => fail!("Unexpected instruction JSON type")
+      };
+
+      match instruction.kind {
+        Gap => {
+          obj.insert(~"gap_state", self.gaps.get(&instruction.id).to_json());
+        },
+        _ => ()
+      }
+
+      result.insert(id.to_str(), Object(obj));
     }
 
     return Object(result);
