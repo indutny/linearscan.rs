@@ -245,13 +245,15 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     let end = self.intervals.get(&current).end();
     if max_pos >= end {
       // Register is available for whole current's lifetime
+    } else if start + 1 >= max_pos {
+      // Allocation is impossible
+      return false;
     } else {
       // Register is available for some part of current's lifetime
       assert!(max_pos < end);
 
       let mut split_pos = self.optimal_split_pos(start, max_pos);
-      if split_pos == max_pos - 1 &&
-         self.instructions.get(&max_pos).kind.is_call() {
+      if split_pos == max_pos - 1 && self.is_call(&max_pos) {
         // Splitting right before `call` instruction is pointless,
         // unless we have a register use at that instruction,
         // try spilling current instead.
@@ -421,6 +423,12 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         }
       }
     }
+
+    // Always split at gap
+    if !self.is_gap(&best_pos) && !self.is_call(&best_pos) {
+      assert!(best_pos >= start + 1);
+      best_pos -= 1;
+    }
     assert!(start < best_pos && best_pos <= end);
     return best_pos;
   }
@@ -464,14 +472,19 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
 
     // Split and spill!
     for to_split.each() |id| {
-      // Spill after start of `current`
-      let spill_child = self.split_at(id, start);
+      // Spill before or at start of `current`
+      let split_pos = if self.is_call(&start) || self.is_gap(&start) {
+        start
+      } else {
+        start - 1
+      };
+      let spill_child = self.split(*id, At(split_pos), state);
       self.get_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position
-      match self.intervals.get(id).next_use(start) {
+      match self.intervals.get(id).next_use(split_pos) {
         Some(u) => {
-          self.split(*id, Between(start, u.pos), state);
+          self.split(*id, Between(split_pos, u.pos), state);
         },
 
         // Let it be spilled for the rest of lifetime

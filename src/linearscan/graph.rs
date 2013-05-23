@@ -219,10 +219,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     assert!(self.intervals.get(id).start() < pos);
 
     // Split could be either at gap or at call
-    assert!(match self.instructions.get(&pos).kind {
-      Gap => true,
-      other => other.is_call()
-    });
+    assert!(self.is_gap(&pos) || self.is_call(&pos));
 
     let child = Interval::new(self);
     let parent = match self.get_interval(id).parent {
@@ -289,6 +286,17 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     self.get_interval(&split_parent).uses = parent_uses;
 
     return child;
+  }
+
+  fn is_gap(&self, pos: &InstrId) -> bool {
+    match self.instructions.get(pos).kind {
+      Gap => true,
+      _ => false
+    }
+  }
+
+  fn is_call(&self, pos: &InstrId) -> bool {
+    return self.instructions.get(pos).kind.is_call();
   }
 
   #[inline(always)]
