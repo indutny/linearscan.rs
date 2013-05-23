@@ -171,7 +171,7 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
       let start = self.intervals.get(id).start();
       let end = self.intervals.get(id).end();
 
-      let uses = do (copy self.intervals.get(id).uses).filter |u| {
+      let uses = do (copy self.intervals.get(id).uses).filtered |u| {
         u.kind.is_fixed()
       };
 
