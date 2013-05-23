@@ -1,4 +1,4 @@
-use linearscan::graph::{Graph, KindHelper, Interval,
+use linearscan::graph::{Graph, KindHelper, Interval, LiveRange,
                         IntervalId, InstrId, RegisterId,
                         UseFixed,
                         Value, Register, Stack};
@@ -29,7 +29,8 @@ enum SplitConf {
   At(uint)
 }
 
-trait AllocatorHelper {
+pub trait AllocatorHelper {
+  // Allocating
   fn walk_intervals(&mut self, config: Config) -> Result<(), ~str>;
   fn each_active<'r>(&'r self,
                      state: &'r AllocatorState,
@@ -48,11 +49,14 @@ trait AllocatorHelper {
                               state: &'r mut AllocatorState)
       -> Result<(), ~str>;
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
+
+  // Splitting
   fn optimal_split_pos(&self, start: InstrId, end: InstrId) -> InstrId;
   fn split<'r>(&'r mut self,
                current: IntervalId,
                conf: SplitConf,
                state: &'r mut AllocatorState) -> IntervalId;
+  fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId;
   fn split_and_spill<'r>(&'r mut self,
                          current: IntervalId,
                          state: &'r mut AllocatorState);
@@ -446,6 +450,80 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     state.unhandled.push(res);
     self.sort_unhandled(state);
     return res;
+  }
+
+  fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
+    // We should always make progress
+    assert!(self.intervals.get(id).start() < pos);
+
+    // Split could be either at gap or at call
+    assert!(self.is_gap(&pos) || self.is_call(&pos));
+
+    let child = Interval::new(self);
+    let parent = match self.get_interval(id).parent {
+      Some(parent) => parent,
+      None => *id
+    };
+
+    // Find appropriate child interval
+    let mut split_parent = parent;
+    if !self.intervals.get(&split_parent).covers(pos) {
+      for self.intervals.get(&split_parent).children.each() |child| {
+        if self.intervals.get(child).covers(pos) {
+          split_parent = *child;
+        }
+      }
+      assert!(self.intervals.get(&split_parent).covers(pos));
+    }
+
+    // Add child
+    self.get_interval(&parent).children.push(child);
+    self.get_interval(&child).parent = Some(parent);
+
+    // Move out ranges
+    let mut child_ranges =  ~[];
+    let parent_ranges =
+        do self.intervals.get(&split_parent).ranges.filter_mapped |range| {
+      if range.end <= pos {
+        Some(*range)
+      } else if range.start < pos {
+        // Split required
+        child_ranges.push(LiveRange {
+          start: pos,
+          end: range.end
+        });
+        Some(LiveRange {
+          start: range.start,
+          end: pos
+        })
+      } else {
+        child_ranges.push(*range);
+        None
+      }
+    };
+
+    // Ensure that at least one range is always present
+    assert!(child_ranges.len() != 0);
+    assert!(parent_ranges.len() != 0);
+    self.get_interval(&child).ranges = child_ranges;
+    self.get_interval(&split_parent).ranges = parent_ranges;
+
+    // Move out uses
+    let mut child_uses =  ~[];
+    let split_on_call = self.instructions.get(&pos).kind.is_call();
+    let parent_uses =
+        do self.intervals.get(&split_parent).uses.filter_mapped |u| {
+      if split_on_call && u.pos <= pos || !split_on_call && u.pos < pos {
+        Some(*u)
+      } else {
+        child_uses.push(*u);
+        None
+      }
+    };
+    self.get_interval(&child).uses = child_uses;
+    self.get_interval(&split_parent).uses = parent_uses;
+
+    return child;
   }
 
   fn split_and_spill<'r>(&'r mut self,

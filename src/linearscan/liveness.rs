@@ -1,4 +1,5 @@
 use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister};
+use linearscan::allocator::AllocatorHelper;
 use extra::bitv::BitvSet;
 
 pub trait Liveness {
