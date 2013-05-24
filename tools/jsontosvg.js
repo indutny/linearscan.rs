@@ -20,7 +20,7 @@ function Converter(options) {
       width: 20,
       padding: 4
     },
-    height: 20
+    height: 16
   };
   this.block = {
     r: 3,
@@ -106,8 +106,8 @@ Converter.prototype.draw = function draw() {
   this.drawStyles();
   this.drawScripts();
 
-  this.drawAnnotation();
   this.drawInstructions();
+  this.drawAnnotation();
 
   this.maxDepth = 0;
   this.input.blocks.forEach(function(block) {
@@ -148,10 +148,14 @@ Converter.prototype.drawStyles = function drawStyles() {
       src: local("Raleway"),
       url(http://themes.googleusercontent.com/static/fonts/raleway/v6/cIFypx4yrWPDz3zOxk7hIQLUuEpTyoUstqEm5AMlJo4.woff) format("woff");
     }
-    .annotation-wrap { fill: transparent; stroke: #333 }
+    .annotation:not(.visible) { display: none; }
+    .annotation-wrap { fill: white; stroke: #333 }
     .instruction-marker { fill: transparent; }
-    .instruction-marker-text, .instruction-text {
+    .annotation-hint, .instruction-marker-text, .instruction-text {
       font-family: 'Raleway';
+    }
+    .instruction-text {
+      font-size: 12px;
     }
     .instruction-marker-text {
       font-size: 8px;
@@ -185,6 +189,11 @@ Converter.prototype.drawScripts = function drawScripts() {
         document.getElementsByClassName(className) || [],
         cb
       );
+    }
+    function toggle_annotation(on) {
+      each('annotation', function(item) {
+        item.classList[on ? 'add' : 'remove']('visible');
+      });
     }
     function highlight(className, color) {
       each(className, function(i) {
@@ -253,7 +262,7 @@ Converter.prototype.drawAnnotation = function drawAnnotation() {
     y: this.offset.top - 2,
     width: this.annotation.width,
     height: this.annotation.height,
-    'class': 'annotation-wrap'
+    'class': 'annotation annotation-wrap'
   });
 
   // Just to add some margin betwen annotation and instructions
@@ -266,16 +275,26 @@ Converter.prototype.drawAnnotation = function drawAnnotation() {
       y: this.offset.top + this.annotation.item.height * i,
       width: this.annotation.item.width - this.annotation.item.padding,
       height: this.annotation.item.height - this.annotation.item.padding,
-      'class': keys[i]
+      'class': keys[i] + ' annotation'
     });
     this.tag('text', {
       x: this.offset.left + this.annotation.item.width,
       y: this.offset.top + this.annotation.item.height * i +
          this.annotation.item.height / 2,
       'font-family': 'Raleway',
-      'dominant-baseline': 'middle'
+      'dominant-baseline': 'middle',
+      'class': 'annotation'
     }, annotation[keys[i]]);
   }
+
+  // Draw question mark
+  this.tag('text', {
+    x: this.offset.left - 2,
+    y: this.offset.top + 4,
+    'class': 'annotation-hint',
+    onmouseover: 'toggle_annotation(true)',
+    onmouseout: 'toggle_annotation(false)'
+  }, '?');
 };
 
 Converter.prototype.drawInstructions = function drawInstructions() {
@@ -335,8 +354,7 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     return parseInt(key, 10);
   }).forEach(function(key, i) {
     var instr = this.input.instructions[key];
-    var markerY = this.offset.top + this.annotation.height +
-                  i * this.instruction.height;
+    var markerY = this.offset.top + i * this.instruction.height;
     var depthOffset = this.input.blocks[instr.block].loop_depth * 8;
 
     // Draw marker
