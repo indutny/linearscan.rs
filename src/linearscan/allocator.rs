@@ -1,5 +1,5 @@
 use linearscan::graph::{Graph, KindHelper, Interval,
-                        IntervalId, InstrId, RegisterId,
+                        IntervalId, InstrId, RegisterId, StackId, BlockId,
                         UseFixed,
                         Value, Register, Stack};
 use linearscan::flatten::Flatten;
@@ -12,7 +12,7 @@ pub struct Config {
 
 struct AllocatorState {
   config: Config,
-  spill_count: uint,
+  spill_count: StackId,
   spills: ~[Value],
   unhandled: ~[IntervalId],
   active: ~[IntervalId],
@@ -25,8 +25,8 @@ pub trait Allocator {
 }
 
 enum SplitConf {
-  Between(uint, uint),
-  At(uint)
+  Between(InstrId, InstrId),
+  At(InstrId)
 }
 
 trait AllocatorHelper {
@@ -47,6 +47,7 @@ trait AllocatorHelper {
                               current: IntervalId,
                               state: &'r mut AllocatorState)
       -> Result<(), ~str>;
+  fn resolve_data_flow(&mut self, list: &[BlockId]);
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
   fn split<'r>(&'r mut self,
                current: IntervalId,
@@ -73,7 +74,10 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
     // Build live_in/live_out
     return do self.build_liveranges(list).chain() |_| {
       // Walk intervals!
-      self.walk_intervals(config)
+      do self.walk_intervals(config).chain() |_| {
+        self.resolve_data_flow(list);
+        Ok(())
+      }
     };
   }
 }
@@ -461,6 +465,37 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         None() => ()
       }
     };
+  }
+
+  fn resolve_data_flow(&mut self, list: &[BlockId]) {
+    for list.each() |block_id| {
+      let block_end = self.blocks.get(block_id).end() - 1;
+      let successors = copy self.blocks.get(block_id).successors;
+      for successors.each() |succ_id| {
+        let succ_start = copy self.blocks.get(succ_id).start();
+        let live_in = copy self.blocks.get(succ_id).live_in;
+
+        for live_in.each() |interval_id| {
+          let parent = match self.intervals.get(interval_id).parent {
+            Some(p) => p,
+            None => *interval_id
+          };
+
+          let from = self.child_at(&parent, block_end)
+                         .expect("Interval should exist at pred end");
+          let to = self.child_at(&parent, succ_start)
+                       .expect("Interval should exist at succ start");
+          if from != to {
+            let gap_pos = if successors.len() == 2 {
+              succ_start
+            } else {
+              block_end
+            };
+            self.get_gap(&gap_pos).add_move(&from, &to);
+          }
+        }
+      }
+    }
   }
 }
 

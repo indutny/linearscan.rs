@@ -356,6 +356,23 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return child;
   }
 
+  /// Find child interval, that covers specified position
+  fn child_at(&self, parent: &IntervalId, pos: InstrId) -> Option<IntervalId> {
+    let p = self.intervals.get(parent);
+    if p.covers(pos) {
+      return Some(*parent);
+    }
+
+    for p.children.each() |child| {
+      if self.intervals.get(child).covers(pos) {
+        return Some(*child);
+      }
+    }
+
+    // No match?
+    None
+  }
+
   /// Return true if instruction at specified position is Gap
   fn is_gap(&self, pos: &InstrId) -> bool {
     match self.instructions.get(pos).kind {
