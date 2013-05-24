@@ -168,37 +168,20 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
       }
     }
     for list.each() |id| {
-      let mut cur = *id;
-      let start = self.intervals.get(id).start();
-      let end = self.intervals.get(id).end();
+      let cur = *id;
 
       let uses = do (copy self.intervals.get(id).uses).filtered |u| {
         u.kind.is_fixed()
       };
 
-      for uses.each() |u| {
-        let pos = if u.pos == start {
-          if start + 1 < end {
-            Some(u.pos + 1)
-          } else {
-            None
-          }
-        } else {
-          if u.pos > start + 1 {
-            Some(u.pos - 1)
-          } else {
-            None
-          }
-        };
+      let mut i = 0;
+      while i < uses.len() - 1 {
+        // Split between each pair of uses
+        let split_pos = self.optimal_split_pos(uses[i].pos, uses[i + 1].pos);
+        self.split_at(&cur, split_pos);
 
-        match pos {
-          Some(pos) if self.intervals.get(&cur).covers(pos) => {
-            cur = self.split_at(id, pos);
-          },
-          // TODO(indutny) handle bad cases
-          _ => ()
-        }
-      };
+        i += 1;
+      }
     }
   }
 }

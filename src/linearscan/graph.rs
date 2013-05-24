@@ -237,6 +237,36 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return block.start() == pos || block.end() == pos;
   }
 
+  /// Find optimal split position between two instructions
+  fn optimal_split_pos(&self, start: InstrId, end: InstrId) -> InstrId {
+    // Fast and unfortunate case
+    if start == end {
+      return end;
+    }
+
+    let mut best_pos = end;
+    let mut best_depth = uint::max_value;
+    for self.blocks.each() |_, block| {
+      if best_depth >= block.loop_depth {
+        let block_to = block.end();
+
+        // Choose the most shallow block
+        if start < block_to && block_to <= end {
+          best_pos = block_to;
+          best_depth = block.loop_depth;
+        }
+      }
+    }
+
+    // Always split at gap
+    if !self.is_gap(&best_pos) && !self.is_call(&best_pos) {
+      assert!(best_pos >= start + 1);
+      best_pos -= 1;
+    }
+    assert!(start < best_pos && best_pos <= end);
+    return best_pos;
+  }
+
   /// Split interval or one of it's children at specified position, return
   /// id of split child.
   fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
