@@ -303,9 +303,8 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
     // Insert movement
     let split_at_call = self.is_call(&pos);
-    let gap_pos = if split_at_call { pos - 1 } else { pos };
-    if split_at_call || !self.block_boundary(gap_pos) {
-      self.get_gap(&gap_pos).add_move(&split_parent, &child);
+    if split_at_call || !self.block_boundary(pos) {
+      self.get_gap(&pos).add_move(&split_parent, &child);
     }
 
     // Move out ranges

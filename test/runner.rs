@@ -27,7 +27,6 @@ impl KindHelper for Kind {
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
       &BranchIfBigger if i == 0 => UseFixed(2),
-      &AB => UseFixed(i),
       &JustUse => UseFixed(1),
       &Print => UseFixed(3),
       &Return => UseFixed(0),
@@ -40,13 +39,12 @@ impl KindHelper for Kind {
       &Return => None,
       &BranchIfBigger => None,
       &JustUse => None,
-      &AB => None,
       _ => Some(UseRegister)
     }
   }
 }
 
-fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
+fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
   let mut g = ~Graph::new::<Kind>();
 
   body(&mut *g);
@@ -54,7 +52,7 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
   g.allocate(Config { register_count: 4 }).get();
 
   let mut emu = Emulator::new();
-//  emu.run(g);
+  assert!(emu.run(g) == expected);
 
   let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
   match writer {
@@ -65,14 +63,14 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
 
 #[test]
 fn realword_example() {
-  do graph_test() |g| {
+  do graph_test(21) |g| {
     let phi = g.phi();
 
     let cond = g.empty_block();
     let left = g.empty_block();
     let after_left = g.empty_block();
     let right = g.empty_block();
-    let ret = g.new_instr(Zero, ~[]);
+    let ret = g.new_instr(Ten, ~[]);
 
     do g.block() |b| {
       b.make_root();
@@ -103,22 +101,8 @@ fn realword_example() {
     };
 
     do g.with_block(right) |b| {
-      b.add(Return, ~[ret]);
-      b.end();
-    };
-  };
-}
-
-// #[test]
-fn ab_ba() {
-  do graph_test() |g| {
-    do g.block() |b| {
-      b.make_root();
-
-      let ten = b.add(Ten, ~[]);
-      let zero = b.add(Zero, ~[]);
-      b.add(AB, ~[ten, zero]);
-      b.add(AB, ~[zero, ten]);
+      let sum = b.add(Sum, ~[ret, phi]);
+      b.add(Return, ~[sum]);
       b.end();
     };
   };

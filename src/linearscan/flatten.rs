@@ -1,6 +1,6 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
-use linearscan::graph::{Graph, BlockId, KindHelper};
+use linearscan::graph::{Graph, BlockId, KindHelper, GapState};
 
 struct MapResult {
   block: BlockId,
@@ -149,6 +149,12 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
         // And update its id
         instr.id = self.instr_id;
         self.instr_id += 1;
+
+        // Call has it's own gap
+        // TODO(indutny) probably move this to graph.rs
+        if instr.kind.is_call() {
+          self.gaps.insert(instr.id, ~GapState { actions: ~[] });
+        }
 
         // Construct new block instructions list and insert instruction into
         // new map

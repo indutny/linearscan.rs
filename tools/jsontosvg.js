@@ -325,27 +325,30 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     if (instr.output !== null)
       res += interval_to_str(instr.output) + ' = ';
     res += instr.kind;
-    if (/^~gap/.test(instr.kind)) {
-      // Print gap state
-      res += '[';
-      res += instr.gap_state.actions.map(function(act) {
-        return act.from + (act.type === 'move' ? ' => ' : ' <=> ') + act.to;
-      }).join(', ');
-      res += ']';
-    } else {
+
+    if (instr.inputs.length > 0) {
       res += '(';
       instr.inputs.forEach(function(input, i) {
         res += interval_to_str(input);
         if (i !== instr.inputs.length - 1) res += ', ';
       });
       res += ')';
-      if (instr.temporary.length > 0) {
-        res += ' | tmp: ';
-        instr.temporary.forEach(function(tmp, i) {
-          res += interval_to_str(tmp);
-          if (i !== instr.temporary.length - 1) res += ', ';
-        });
-      }
+    }
+    if (instr.temporary.length > 0) {
+      res += ' | tmp: ';
+      instr.temporary.forEach(function(tmp, i) {
+        res += interval_to_str(tmp);
+        if (i !== instr.temporary.length - 1) res += ', ';
+      });
+    }
+
+    if (instr.gap_state) {
+      // Print gap state
+      res += ' [';
+      res += instr.gap_state.actions.map(function(act) {
+        return act.from + (act.type === 'move' ? ' => ' : ' <=> ') + act.to;
+      }).join(', ');
+      res += ']';
     }
     return res;
   }

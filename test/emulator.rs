@@ -6,8 +6,8 @@ use extra::smallintmap::SmallIntMap;
 #[deriving(Eq, ToStr)]
 pub enum Kind {
   Increment,
+  Sum,
   BranchIfBigger,
-  AB,
   JustUse,
   Print,
   Zero,
@@ -46,17 +46,30 @@ pub impl Emulator {
 
       let instr = graph.instructions.find(&self.ip).expect("No OOB");
 
+      // Call instructions have embedded move
+      if instr.kind.is_call() {
+        self.parallel_move(graph);
+
+        // Return back to instruction
+        self.ip -= 1;
+      }
+
       // Get output, temporaries
+      let output_pos = if instr.kind.is_call() {
+        instr.id + 1
+      } else {
+        instr.id
+      };
       let output = match instr.output {
-        Some(out) => Some(graph.get_value(&out, self.ip).unwrap()),
+        Some(out) => Some(graph.get_value(&out, output_pos).unwrap()),
         None => None
       };
       let tmps = do instr.temporary.map() |tmp| {
-        graph.get_value(tmp, self.ip).unwrap()
+        graph.get_value(tmp, instr.id).unwrap()
       };
       // And inputs
       let inputs = do instr.inputs.map() |input| {
-        self.read(graph.get_value(input, self.ip).expect("input"))
+        self.read(graph.get_value(input, instr.id).expect("input"))
       };
 
       // Get successor positions
@@ -72,8 +85,7 @@ pub impl Emulator {
       };
 
       // Goto
-      if self.ip > graph.blocks.get(&instr.block).end() {
-        assert!(succ.len() == 1);
+      if succ.len() == 1 && self.ip == graph.blocks.get(&instr.block).end() {
         self.ip = succ[0];
       }
     }
@@ -127,11 +139,11 @@ pub impl Emulator {
                       successors: &[uint]) {
     match kind {
       Increment => self.put(out, inputs[0] + 1),
-      AB => (), // nop
       JustUse => (), // nop
       Print => self.put(out, 0),
       Zero => self.put(out, 0),
       Ten => self.put(out, 10),
+      Sum => self.put(out, inputs[0] + inputs[1]),
       Return => {
         self.result = Some(inputs[0]);
         return;

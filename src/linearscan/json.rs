@@ -175,6 +175,9 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
         Gap => {
           obj.insert(~"gap_state", self.gaps.get(&instruction.id).to_json());
         },
+        k if k.is_call() => {
+          obj.insert(~"gap_state", self.gaps.get(&instruction.id).to_json());
+        },
         _ => ()
       }
 
