@@ -263,10 +263,6 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
       assert!(self.intervals.get(&split_parent).covers(pos));
     }
 
-    // Add child
-    self.get_interval(&parent).children.push(child);
-    self.get_interval(&child).parent = Some(parent);
-
     // Insert movement
     let gap_pos = if self.is_call(&pos) { pos - 1 } else { pos };
     if !self.block_boundary(gap_pos) {
@@ -315,6 +311,17 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     };
     self.get_interval(&child).uses = child_uses;
     self.get_interval(&split_parent).uses = parent_uses;
+
+    // Add child
+    let mut index = 0;
+    for self.intervals.get(&parent).children.eachi_reverse() |i, child| {
+      if self.intervals.get(child).end() <= pos {
+        index = i + 1;
+        break;
+      }
+    };
+    self.get_interval(&parent).children.insert(index, child);
+    self.get_interval(&child).parent = Some(parent);
 
     return child;
   }
