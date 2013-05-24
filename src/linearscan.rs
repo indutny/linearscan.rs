@@ -9,6 +9,9 @@ mod flatten;
 #[path="linearscan/liveness.rs"]
 mod liveness;
 
+#[path="linearscan/gap.rs"]
+mod gap;
+
 #[path="linearscan/json.rs"]
 mod json;
 

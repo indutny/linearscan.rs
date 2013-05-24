@@ -4,6 +4,7 @@ use linearscan::graph::{Graph, KindHelper, Interval,
                         Value, Register, Stack};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
+use linearscan::gap::GapResolver;
 use extra::sort::quick_sort;
 
 pub struct Config {
@@ -97,6 +98,7 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
       // Walk intervals!
       do self.walk_intervals(config).chain() |_| {
         self.resolve_data_flow(list);
+        self.resolve_gaps();
         self.verify();
         Ok(())
       }

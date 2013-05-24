@@ -7,6 +7,7 @@ SRC ?=
 SRC += src/linearscan.rs
 SRC += src/linearscan/allocator.rs
 SRC += src/linearscan/flatten.rs
+SRC += src/linearscan/gap.rs
 SRC += src/linearscan/graph.rs
 SRC += src/linearscan/json.rs
 SRC += src/linearscan/liveness.rs
