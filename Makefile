@@ -10,7 +10,7 @@ SRC += src/linearscan/flatten.rs
 SRC += src/linearscan/graph.rs
 SRC += src/linearscan/json.rs
 SRC += src/linearscan/liveness.rs
-SRC += src/tests.rs
+SRC += test/runner.rs
 
 all: $(TEST_BINARY)
 	$(TEST_BINARY)
@@ -19,7 +19,7 @@ clean:
 	rm -f $(TEST_BINARY)
 
 $(TEST_BINARY): $(SRC)
-	$(RUSTC) $(RUSTFLAGS) --test src/tests.rs -o $@
+	$(RUSTC) $(RUSTFLAGS) --test test/runner.rs -o $@
 
 
 .PHONY: all clean

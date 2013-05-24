@@ -3,6 +3,8 @@ extern mod extra;
 use linearscan::{Allocator, Config, Graph, KindHelper,
                  UseKind, UseAny, UseRegister, UseFixed};
 use extra::json::ToJson;
+
+#[path="../src/linearscan.rs"]
 mod linearscan;
 
 #[deriving(Eq, ToStr)]
