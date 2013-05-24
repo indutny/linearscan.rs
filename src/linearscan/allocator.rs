@@ -181,7 +181,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
                                   reg: RegisterId,
                                   pos: InstrId) -> bool) -> bool {
     for state.inactive.each() |id| {
-      match self.get_next_intersection(id, &current) {
+      match self.get_intersection(id, &current) {
         Some(pos) => match self.intervals.get(id).value {
           Register(reg) => if !f(id, reg, pos) { break },
           _ => fail!("Expected register in inactive")
