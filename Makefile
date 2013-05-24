@@ -11,6 +11,7 @@ SRC += src/linearscan/graph.rs
 SRC += src/linearscan/json.rs
 SRC += src/linearscan/liveness.rs
 SRC += test/runner.rs
+SRC += test/emulator.rs
 
 all: $(TEST_BINARY)
 	$(TEST_BINARY)

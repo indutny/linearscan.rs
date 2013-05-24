@@ -73,6 +73,7 @@ pub struct Interval {
   fixed: bool
 }
 
+#[deriving(Eq)]
 pub enum Value {
   Virtual,
   Register(RegisterId),
@@ -398,6 +399,14 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
     // No match?
     None
+  }
+
+  fn get_value(&self, i: &IntervalId, pos: InstrId) -> Option<Value> {
+    let child = self.child_with_use_at(i, pos);
+    match child {
+      Some(child) => Some(self.intervals.get(&child).value),
+      None => None
+    }
   }
 
   /// Return true if instruction at specified position is Gap

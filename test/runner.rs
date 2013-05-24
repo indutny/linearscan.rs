@@ -3,23 +3,11 @@ extern mod extra;
 use linearscan::{Allocator, Config, Graph, KindHelper,
                  UseKind, UseAny, UseRegister, UseFixed};
 use extra::json::ToJson;
+use emulator::*;
 
 #[path="../src/linearscan.rs"]
 mod linearscan;
-
-#[deriving(Eq, ToStr)]
-enum Kind {
-  Phi,
-  Increment,
-  BranchIfBigger,
-  AB,
-  JustUse,
-  Print,
-  Zero,
-  Ten,
-  Goto,
-  Return
-}
+mod emulator;
 
 impl KindHelper for Kind {
   fn is_call(&self) -> bool {
@@ -49,7 +37,6 @@ impl KindHelper for Kind {
 
   fn result_kind(&self) -> Option<UseKind> {
     match self {
-      &Goto => None,
       &Return => None,
       &BranchIfBigger => None,
       &JustUse => None,
@@ -65,6 +52,10 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
   body(&mut *g);
 
   g.allocate(Config { register_count: 4 }).get();
+
+  let mut emu = Emulator::new();
+  emu.run(g);
+
   let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
   match writer {
     Ok(writer) => writer.write_str(g.to_json().to_str()),
@@ -89,7 +80,6 @@ fn realword_example() {
       b.add_existing(ret);
       let zero = b.add(Zero, ~[]);
       b.to_phi(zero, phi);
-      b.add(Goto, ~[]);
       b.goto(cond);
     };
 
@@ -97,20 +87,18 @@ fn realword_example() {
       let ten = b.add(Ten, ~[]);
       b.add(JustUse, ~[phi]);
       b.add(BranchIfBigger, ~[phi, ten]);
-      b.branch(left, right);
+      b.branch(right, left);
     };
 
     do g.with_block(left) |b| {
       let print_res = b.add(Print, ~[phi]);
       b.add(Increment, ~[print_res]);
-      b.add(Goto, ~[]);
       b.goto(after_left);
     };
 
     do g.with_block(after_left) |b| {
       let counter = b.add(Increment, ~[phi]);
       b.to_phi(counter, phi);
-      b.add(Goto, ~[]);
       b.goto(cond);
     };
 
