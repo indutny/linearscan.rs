@@ -101,9 +101,16 @@ pub struct GapState {
   actions: ~[GapAction]
 }
 
-pub enum GapAction {
-  Move(IntervalId, IntervalId),
-  Swap(IntervalId, IntervalId)
+#[deriving(Eq)]
+pub enum GapActionKind {
+  Move,
+  Swap
+}
+
+pub struct GapAction {
+  kind: GapActionKind,
+  from: IntervalId,
+  to: IntervalId
 }
 
 pub trait KindHelper {
@@ -759,7 +766,7 @@ impl UseKind {
 
 pub impl GapState {
   fn add_move(&mut self, from: &InstrId, to: &InstrId) {
-    self.actions.push(Move(*from, *to));
+    self.actions.push(GapAction { kind: Move, from: *from, to: *to });
   }
 }
 

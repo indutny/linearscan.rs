@@ -44,7 +44,6 @@ impl<K: KindHelper+Copy+ToStr> GapResolverHelper for Graph<K> {
     let mut i = 0;
     let mut result = ~[];
     while i < state.actions.len() {
-      let action = state.actions[i];
       if status[i] == ToMove {
         self.move_one(state.actions, i, status, &mut result);
       }
@@ -58,11 +57,9 @@ impl<K: KindHelper+Copy+ToStr> GapResolverHelper for Graph<K> {
               i: uint,
               s: &mut [MoveStatus],
               result: &mut ~[GapAction]) -> bool {
-    let (from, to) = match actions[i] {
-      Move(from, to) => (self.intervals.get(&from).value,
-                         self.intervals.get(&to).value),
-      _ => fail!("Expected move")
-    };
+    assert!(actions[i].kind == Move);
+    let from = self.intervals.get(&actions[i].from).value;
+    let to = self.intervals.get(&actions[i].to).value;
 
     // Ignore nop moves
     if from == to { return false; }
@@ -72,10 +69,8 @@ impl<K: KindHelper+Copy+ToStr> GapResolverHelper for Graph<K> {
     let mut circular = false;
     let mut sentinel = false;
     while j < actions.len() {
-      let other_from = match actions[j] {
-        Move(from, _) => self.intervals.get(&from).value,
-        _ => fail!("Expected move")
-      };
+      assert!(actions[j].kind == Move);
+      let other_from = self.intervals.get(&actions[j].from).value;
 
       if other_from == to {
         match s[j] {
@@ -97,10 +92,11 @@ impl<K: KindHelper+Copy+ToStr> GapResolverHelper for Graph<K> {
     }
 
     if circular {
-      match actions[i] {
-        Move(from, to) => result.push(Swap(from, to)),
-        _ => fail!("Expected move")
-      }
+      result.push(GapAction {
+        kind: Swap,
+        from: actions[i].from,
+        to: actions[i].to
+      });
     } else if !sentinel {
       result.push(copy actions[i]);
     }

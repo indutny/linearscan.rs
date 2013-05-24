@@ -1,5 +1,6 @@
 use linearscan::{Graph};
-use linearscan::graph::{User, Gap, Phi, ToPhi, Value, Register, Stack, InstrId};
+use linearscan::graph::{User, Gap, Phi, ToPhi, Value, Register, Stack, InstrId,
+                        Move, Swap};
 use extra::smallintmap::SmallIntMap;
 
 #[deriving(Eq, ToStr)]
@@ -97,7 +98,23 @@ pub impl Emulator {
   fn parallel_move(&mut self, graph: &Graph<Kind>) {
     let gap = graph.gaps.get(&self.ip);
 
-    fail!("Not implemented yet");
+    for gap.actions.each() |action| {
+      let from = graph.intervals.get(&action.from).value;
+      let to = graph.intervals.get(&action.to).value;
+
+      match action.kind {
+        Move => {
+          let val = self.read(from);
+          self.put(Some(to), val);
+        },
+        Swap => {
+          let t = self.read(to);
+          let val = self.read(from);
+          self.put(Some(to), val);
+          self.put(Some(from), t);
+        }
+      }
+    };
 
     self.ip += 1;
   }

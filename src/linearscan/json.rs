@@ -61,18 +61,12 @@ impl ToJson for GapState {
 
     obj.insert(~"actions", List(do self.actions.map() |act| {
       let mut obj = ~HashMap::new();
-      let (from, to) = match act {
-        &Move(from, to) => {
-          obj.insert(~"type", String(~"move"));
-          (from, to)
-        },
-        &Swap(from, to) => {
-          obj.insert(~"type", String(~"move"));
-          (from, to)
-        }
-      };
-      obj.insert(~"from", Number(from as float));
-      obj.insert(~"to", Number(to as float));
+      obj.insert(~"type", String(match act.kind {
+        Move => ~"move",
+        Swap => ~"swap"
+      }));
+      obj.insert(~"from", Number(act.from as float));
+      obj.insert(~"to", Number(act.to as float));
       Object(obj)
     }));
 
