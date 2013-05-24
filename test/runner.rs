@@ -54,7 +54,7 @@ fn graph_test(body: &fn(b: &mut Graph<Kind>)) {
   g.allocate(Config { register_count: 4 }).get();
 
   let mut emu = Emulator::new();
-  emu.run(g);
+//  emu.run(g);
 
   let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
   match writer {

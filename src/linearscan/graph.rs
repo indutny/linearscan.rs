@@ -98,12 +98,12 @@ pub struct LiveRange {
 }
 
 pub struct GapState {
-  moves: ~[GapMove]
+  actions: ~[GapAction]
 }
 
-pub struct GapMove {
-  from: IntervalId,
-  to: IntervalId
+pub enum GapAction {
+  Move(IntervalId, IntervalId),
+  Swap(IntervalId, IntervalId)
 }
 
 pub trait KindHelper {
@@ -179,7 +179,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   /// Create gap (internal)
   fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
     let id = self.instr_id();
-    self.gaps.insert(id, ~GapState { moves: ~[] });
+    self.gaps.insert(id, ~GapState { actions: ~[] });
     return ~Instruction {
       id: id,
       block: *block,
@@ -759,7 +759,7 @@ impl UseKind {
 
 pub impl GapState {
   fn add_move(&mut self, from: &InstrId, to: &InstrId) {
-    self.moves.push(GapMove { from: *from, to: *to });
+    self.actions.push(Move(*from, *to));
   }
 }
 

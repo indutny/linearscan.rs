@@ -1,7 +1,7 @@
 use extra::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
 use std::hashmap::HashMap;
 use linearscan::graph::{Graph, Block, Instruction, Interval, LiveRange,
-                        User, Gap, GapState, ToPhi, Phi,
+                        User, Gap, GapState, Move, Swap, ToPhi, Phi,
                         Use, UseAny, UseRegister, UseFixed,
                         Value, Virtual, Register, Stack, KindHelper};
 
@@ -59,10 +59,20 @@ impl ToJson for GapState {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
-    obj.insert(~"moves", List(do self.moves.map() |move| {
+    obj.insert(~"actions", List(do self.actions.map() |act| {
       let mut obj = ~HashMap::new();
-      obj.insert(~"from", Number(move.from as float));
-      obj.insert(~"to", Number(move.to as float));
+      let (from, to) = match act {
+        &Move(from, to) => {
+          obj.insert(~"type", String(~"move"));
+          (from, to)
+        },
+        &Swap(from, to) => {
+          obj.insert(~"type", String(~"move"));
+          (from, to)
+        }
+      };
+      obj.insert(~"from", Number(from as float));
+      obj.insert(~"to", Number(to as float));
       Object(obj)
     }));
 

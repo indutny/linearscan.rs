@@ -67,12 +67,7 @@ pub impl Emulator {
         Phi => fail!("Impossible, phi should not be executed"),
         ToPhi => { self.put(output, inputs[0]); self.ip += 1; },
         Gap => self.parallel_move(graph),
-        User(usr) => self.user_instruction(graph,
-                                           usr,
-                                           output,
-                                           tmps,
-                                           inputs,
-                                           succ)
+        User(usr) => self.user_instruction(usr, output, tmps, inputs, succ)
       };
 
       // Goto
@@ -102,61 +97,12 @@ pub impl Emulator {
   fn parallel_move(&mut self, graph: &Graph<Kind>) {
     let gap = graph.gaps.get(&self.ip);
 
-    // Find loops
-    let mut loop_i = None;
-    for gap.moves.eachi() |i, move| {
-      let from = graph.intervals.get(&move.from).value;
-      let to = graph.intervals.get(&move.to).value;
-
-      if from != to {
-        let mut j = i + 1;
-        while j < gap.moves.len() {
-          let next_to = graph.intervals.get(&gap.moves[j].from).value;
-          if next_to == from {
-            loop_i = Some((i, j));
-            break;
-          }
-          j += 1;
-        }
-      }
-
-      if loop_i.is_some() {
-        break;
-      }
-    }
-
-    // Process loop end
-    let tmp = match loop_i {
-      Some((_, end)) => {
-        let to = graph.intervals.get(&gap.moves[end].to).value;
-        Some(self.read(to))
-      },
-      _ => None
-    };
-
-    // Process other moves
-    for gap.moves.eachi() |i, move| {
-      let from = graph.intervals.get(&move.from).value;
-      let to = graph.intervals.get(&move.to).value;
-
-      match loop_i {
-        Some((a, _)) if i == a => {
-          // Loop start
-          self.put(Some(to), tmp.expect("Tmp should be present"));
-        },
-        _ => {
-          // Normal
-          let val = self.read(from);
-          self.put(Some(to), val);
-        }
-      }
-    }
+    fail!("Not implemented yet");
 
     self.ip += 1;
   }
 
   fn user_instruction(&mut self,
-                      graph: &Graph<Kind>,
                       kind: Kind,
                       out: Option<Value>,
                       tmps: &[Value],

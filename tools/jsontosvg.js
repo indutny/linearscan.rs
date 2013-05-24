@@ -328,8 +328,8 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     if (/^~gap/.test(instr.kind)) {
       // Print gap state
       res += '[';
-      res += instr.gap_state.moves.map(function(move) {
-        return move.from + ' => ' + move.to;
+      res += instr.gap_state.actions.map(function(act) {
+        return act.from + (act.type === 'move' ? ' => ' : ' <=> ') + act.to;
       }).join(', ');
       res += ']';
     } else {
