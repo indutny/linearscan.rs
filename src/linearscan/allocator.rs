@@ -30,32 +30,53 @@ enum SplitConf {
 }
 
 trait AllocatorHelper {
+  // Walk unhandled intervals in the order of increasing starting point
   fn walk_intervals(&mut self, config: Config) -> Result<(), ~str>;
+  // Try allocating free register
+  fn allocate_free_reg<'r>(&'r mut self,
+                           current: IntervalId,
+                           state: &'r mut AllocatorState) -> bool;
+  // Allocate blocked register and spill others, or spill interval itself
+  fn allocate_blocked_reg<'r>(&'r mut self,
+                              current: IntervalId,
+                              state: &'r mut AllocatorState)
+      -> Result<(), ~str>;
+  // Add movements on block edges
+  fn resolve_data_flow(&mut self, list: &[BlockId]);
+
+  //
+  // Helpers
+  //
+
+  // Sort unhandled list (after insertion)
+  fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
+
+  // Split interval at some optimal position and add split child to unhandled
+  fn split<'r>(&'r mut self,
+               current: IntervalId,
+               conf: SplitConf,
+               state: &'r mut AllocatorState) -> IntervalId;
+
+  // Split and spill all intervals intersecting with current
+  fn split_and_spill<'r>(&'r mut self,
+                         current: IntervalId,
+                         state: &'r mut AllocatorState);
+
+  // Iterate through all active intervals
   fn each_active<'r>(&'r self,
                      state: &'r AllocatorState,
                      f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool;
+
+  // Iterate through all inactive intervals that are intersecting with current
   fn each_intersecting<'r>(&'r self,
                            current: IntervalId,
                            state: &'r AllocatorState,
                            f: &fn(i: &IntervalId,
                                   reg: RegisterId,
                                   pos: InstrId) -> bool) -> bool;
-  fn allocate_free_reg<'r>(&'r mut self,
-                           current: IntervalId,
-                           state: &'r mut AllocatorState) -> bool;
-  fn allocate_blocked_reg<'r>(&'r mut self,
-                              current: IntervalId,
-                              state: &'r mut AllocatorState)
-      -> Result<(), ~str>;
-  fn resolve_data_flow(&mut self, list: &[BlockId]);
-  fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
-  fn split<'r>(&'r mut self,
-               current: IntervalId,
-               conf: SplitConf,
-               state: &'r mut AllocatorState) -> IntervalId;
-  fn split_and_spill<'r>(&'r mut self,
-                         current: IntervalId,
-                         state: &'r mut AllocatorState);
+
+  // Verify allocation results
+  fn verify(&self);
 }
 
 impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
@@ -76,6 +97,7 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
       // Walk intervals!
       do self.walk_intervals(config).chain() |_| {
         self.resolve_data_flow(list);
+        self.verify();
         Ok(())
       }
     };
@@ -163,36 +185,6 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     }
 
     return Ok(());
-  }
-
-  fn each_active<'r>(&'r self,
-                     state: &'r AllocatorState,
-                     f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool {
-    for state.active.each() |id| {
-      match self.intervals.get(id).value {
-        Register(reg) => if !f(id, reg) { break },
-        _ => fail!("Expected register in active")
-      };
-    }
-    true
-  }
-
-  fn each_intersecting<'r>(&'r self,
-                           current: IntervalId,
-                           state: &'r AllocatorState,
-                           f: &fn(i: &IntervalId,
-                                  reg: RegisterId,
-                                  pos: InstrId) -> bool) -> bool {
-    for state.inactive.each() |id| {
-      match self.get_intersection(id, &current) {
-        Some(pos) => match self.intervals.get(id).value {
-          Register(reg) => if !f(id, reg, pos) { break },
-          _ => fail!("Expected register in inactive")
-        },
-        None => ()
-      };
-    }
-    true
   }
 
   fn allocate_free_reg<'r>(&'r mut self,
@@ -397,6 +389,36 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     return Ok(());
   }
 
+  fn each_active<'r>(&'r self,
+                     state: &'r AllocatorState,
+                     f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool {
+    for state.active.each() |id| {
+      match self.intervals.get(id).value {
+        Register(reg) => if !f(id, reg) { break },
+        _ => fail!("Expected register in active")
+      };
+    }
+    true
+  }
+
+  fn each_intersecting<'r>(&'r self,
+                           current: IntervalId,
+                           state: &'r AllocatorState,
+                           f: &fn(i: &IntervalId,
+                                  reg: RegisterId,
+                                  pos: InstrId) -> bool) -> bool {
+    for state.inactive.each() |id| {
+      match self.get_intersection(id, &current) {
+        Some(pos) => match self.intervals.get(id).value {
+          Register(reg) => if !f(id, reg, pos) { break },
+          _ => fail!("Expected register in inactive")
+        },
+        None => ()
+      };
+    }
+    true
+  }
+
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState) {
     // Sort intervals in the order of increasing start position
     do quick_sort(state.unhandled) |left, right| {
@@ -496,6 +518,36 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
         }
       }
     }
+  }
+
+  #[cfg(test)]
+  fn verify(&self) {
+    for self.intervals.each() |_, interval| {
+      if interval.ranges.len() > 0 {
+        // Every interval should have a non-virtual value
+        assert!(!interval.value.is_virtual());
+
+        // Each use should receive the same type of input as it has requested
+        for interval.uses.each() |u| {
+          match u.kind {
+            // Any use - no restrictions
+            UseAny => (),
+            UseRegister => match interval.value {
+              Register(_) => (), // ok
+              _ => fail!("Register expected")
+            },
+            UseFixed(r0) => match interval.value {
+              Register(r1) if r0 == r1 => (), // ok
+              _ => fail!("Expected fixed register")
+            }
+          }
+        }
+      }
+    }
+  }
+  #[cfg(not(test))]
+  fn verify(&self) {
+    // Production mode, no verification
   }
 }
 

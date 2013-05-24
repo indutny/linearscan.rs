@@ -357,18 +357,44 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
     return child;
   }
 
-  /// Find child interval, that covers specified position
-  fn child_at(&self, parent: &IntervalId, pos: InstrId) -> Option<IntervalId> {
-    let p = self.intervals.get(parent);
-    if p.covers(pos) {
-      return Some(*parent);
+  /// Helper function
+  fn iterate_children(&self,
+                      id: &IntervalId,
+                      f: &fn(&~Interval) -> bool) -> bool {
+    let p = self.intervals.get(id);
+    if !f(p) {
+      return false;
     }
 
-    for p.children.each() |child| {
-      if self.intervals.get(child).covers(pos) {
-        return Some(*child);
-      }
+    for p.children.each() |child_id| {
+      let child = self.intervals.get(child_id);
+      if !f(child) { break; }
     }
+
+    true
+  }
+
+  /// Find child interval, that covers specified position
+  fn child_at(&self, parent: &IntervalId, pos: InstrId) -> Option<IntervalId> {
+    for self.iterate_children(parent) |interval| {
+      if interval.start() <= pos && pos < interval.end() {
+        return Some(interval.id);
+      }
+    };
+
+    // No match?
+    None
+  }
+
+  fn child_with_use_at(&self,
+                       parent: &IntervalId,
+                       pos: InstrId) -> Option<IntervalId> {
+    for self.iterate_children(parent) |interval| {
+      if interval.start() <= pos && pos <= interval.end() &&
+         interval.uses.any(|u| { u.pos == pos }) {
+        return Some(interval.id);
+      }
+    };
 
     // No match?
     None
