@@ -234,8 +234,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   /// Return `true` if `pos` is either some block's start or end
   fn block_boundary(&self, pos: InstrId) -> bool {
     let block = self.blocks.get(&self.instructions.get(&pos).block);
-    return *block.instructions.last() == pos ||
-           *block.instructions.head() == pos;
+    return block.start() == pos || block.end() == pos;
   }
 
   /// Split interval or one of it's children at specified position, return
@@ -671,6 +670,18 @@ impl UseKind {
 pub impl GapState {
   fn add_move(&mut self, from: &InstrId, to: &InstrId) {
     self.moves.push(GapMove { from: *from, to: *to });
+  }
+}
+
+pub impl<K: KindHelper+Copy+ToStr> Block<K> {
+  fn start(&self) -> InstrId {
+    assert!(self.instructions.len() != 0);
+    return *self.instructions.head();
+  }
+
+  fn end(&self) -> InstrId {
+    assert!(self.instructions.len() != 0);
+    return *self.instructions.last() + 1;
   }
 }
 

@@ -414,7 +414,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     let mut best_depth = uint::max_value;
     for self.blocks.each() |_, block| {
       if best_depth >= block.loop_depth {
-        let block_to = *block.instructions.last() + 1;
+        let block_to = block.end();
 
         // Choose the most shallow block
         if start < block_to && block_to <= end {

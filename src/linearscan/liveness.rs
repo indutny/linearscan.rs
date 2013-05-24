@@ -89,10 +89,10 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
   fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str> {
     let physical = copy self.physical;
     for blocks.each_reverse() |block_id| {
-      let instructions = copy self.get_block(block_id).instructions;
-      let live_out = copy self.get_block(block_id).live_out;
-      let block_from = *instructions.head();
-      let block_to = instructions.last() + 1;
+      let instructions = copy self.blocks.get(block_id).instructions;
+      let live_out = copy self.blocks.get(block_id).live_out;
+      let block_from = self.blocks.get(block_id).start();
+      let block_to = self.blocks.get(block_id).end();
 
       // Assume that each live_out interval lives for the whole time of block
       // NOTE: we'll shorten it later if definition of this interval appears to
