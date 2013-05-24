@@ -361,9 +361,10 @@ Converter.prototype.drawInstructions = function drawInstructions() {
     this.tag('rect', {
       'class': 'instruction-marker c-' + key,
       onmouseover: 'h({c:' + instr.id + '})',
-      x: this.offset.left + depthOffset,
+      x: this.offset.left,
       y: markerY,
-      width: this.instruction.marker.width - this.instruction.marker.padding,
+      width: this.instruction.marker.width - this.instruction.marker.padding +
+             depthOffset,
       height: this.instruction.height - this.instruction.marker.padding
     });
     this.tag('text', {
