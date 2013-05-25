@@ -29,19 +29,19 @@ fn realword_example() {
     let left = g.empty_block();
     let after_left = g.empty_block();
     let right = g.empty_block();
-    let ret = g.new_instr(Ten, ~[]);
+    let ret = g.new_instr(Number(10), ~[]);
 
     do g.block() |b| {
       b.make_root();
 
       b.add_existing(ret);
-      let zero = b.add(Zero, ~[]);
+      let zero = b.add(Number(0), ~[]);
       b.to_phi(zero, phi);
       b.goto(cond);
     };
 
     do g.with_block(cond) |b| {
-      let ten = b.add(Ten, ~[]);
+      let ten = b.add(Number(10), ~[]);
       b.add(JustUse, ~[phi]);
       b.add(BranchIfBigger, ~[phi, ten]);
       b.branch(right, left);
