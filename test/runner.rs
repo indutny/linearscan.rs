@@ -18,12 +18,6 @@ fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
 
   let mut emu = Emulator::new();
   assert!(emu.run(g) == expected);
-
-  let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
-  match writer {
-    Ok(writer) => writer.write_str(g.to_json().to_str()),
-    Err(_) => ()
-  };
 }
 
 #[test]
