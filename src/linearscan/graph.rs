@@ -688,6 +688,16 @@ pub impl Interval {
     };
     return None;
   }
+
+  /// Return last UseFixed(...) or UseRegister before `before` position
+  fn last_use(&self, before: InstrId) -> Option<Use> {
+    for self.uses.each_reverse() |u| {
+      if u.pos <= before && u.kind != UseAny {
+        return Some(*u);
+      }
+    };
+    return None;
+  }
 }
 
 impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {

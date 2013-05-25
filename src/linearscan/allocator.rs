@@ -476,18 +476,23 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
     // Split and spill!
     for to_split.each() |id| {
       // Spill before or at start of `current`
-      let split_pos = if self.is_call(&start) || self.is_gap(&start) {
+      let spill_pos = if self.is_call(&start) || self.is_gap(&start) {
         start
       } else {
         start - 1
       };
-      let spill_child = self.split(*id, At(split_pos), state);
+      let last_use = match self.intervals.get(id).last_use(spill_pos) {
+        Some(u) => u.pos,
+        None => self.intervals.get(id).start()
+      };
+
+      let spill_child = self.split(*id, Between(last_use, spill_pos), state);
       self.get_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position
-      match self.intervals.get(id).next_use(split_pos) {
+      match self.intervals.get(id).next_use(spill_pos) {
         Some(u) => {
-          self.split(*id, Between(split_pos, u.pos), state);
+          self.split(*id, Between(spill_pos, u.pos), state);
         },
 
         // Let it be spilled for the rest of lifetime
