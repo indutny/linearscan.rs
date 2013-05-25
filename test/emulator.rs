@@ -50,7 +50,6 @@ impl KindHelper for Kind {
   }
 }
 
-
 pub struct Emulator {
   ip: InstrId,
   instructions: ~[Instruction],

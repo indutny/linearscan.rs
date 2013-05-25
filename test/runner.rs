@@ -1,7 +1,7 @@
 extern mod extra;
 
 use linearscan::{Allocator, Generator, GeneratorFunctions,
-                 Config, Graph, BlockId};
+                 Config, Graph, InstrId, BlockId};
 use extra::json::ToJson;
 use emulator::*;
 
@@ -16,8 +16,17 @@ fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
 
   g.allocate(Config { register_count: 4 }).get();
 
+
+  let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
+  match writer {
+    Ok(writer) => writer.write_str(g.to_json().to_str()),
+    Err(_) => ()
+  };
   let mut emu = Emulator::new();
-  assert!(emu.run(g) == expected);
+  let got = emu.run(g);
+  if got != expected {
+    fail!(fmt!("got %? expected %?", got, expected));
+  }
 }
 
 #[test]
@@ -69,11 +78,19 @@ fn realword_example() {
 
 #[test]
 fn nested_loops() {
-  do graph_test(0) |g| {
+  struct LoopResult {
+    pre: BlockId,
+    after: BlockId,
+    out: InstrId
+  }
+
+  do graph_test(25) |g| {
     fn create_loop(g: &mut Graph<Kind>,
-                   f: &fn(&mut Graph<Kind>) -> Option<(BlockId, BlockId)>)
-        -> Option<(BlockId, BlockId)> {
+                   in: InstrId,
+                   f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
+        -> Option<LoopResult> {
       let phi = g.phi();
+      let res_phi = g.phi();
       let cond = g.empty_block();
       let body = g.empty_block();
       let after = g.empty_block();
@@ -82,6 +99,7 @@ fn nested_loops() {
       let pre = do g.block() |b| {
         let init = b.add(Number(0), ~[]);
         b.to_phi(init, phi);
+        b.to_phi(in, res_phi);
         b.goto(cond);
       };
 
@@ -102,10 +120,11 @@ fn nested_loops() {
         b.add(Nop, ~[]);
       };
 
-      match f(g) {
+      match f(g, res_phi) {
         // Link loops together
-        Some((pre, after)) => {
+        Some(LoopResult {pre, after, out}) => {
           do g.with_block(body) |b| {
+            b.to_phi(out, res_phi);
             b.goto(pre);
           };
           do g.with_block(after) |b| {
@@ -115,25 +134,30 @@ fn nested_loops() {
         // Just loop
         None => {
           do g.with_block(body) |b| {
+            let next = b.add(Increment, ~[res_phi]);
+            b.to_phi(next, res_phi);
             b.goto(cond);
           };
         }
       };
 
-      Some((pre, after))
+      Some(LoopResult{ pre: pre, after: after, out: res_phi })
     }
 
-    let (pre, after) = do create_loop(g) |g| {
-      do create_loop(g) |_| {
-        None
-      }
+    let in = g.new_instr(Number(0), ~[]);
+    let LoopResult{ pre, after, out } = do create_loop(g, in) |g, in| {
+      do create_loop(g, in) |_, _| { None }
     }.unwrap();
 
-    g.set_root(pre);
+    // Start
+    do g.block() |b| {
+      b.make_root();
+      b.add_existing(in);
+      b.goto(pre);
+    };
 
     do g.with_block(after) |b| {
-      let num = b.add(Number(0), ~[]);
-      b.add(Return, ~[num]);
+      b.add(Return, ~[out]);
       b.end();
     };
   };

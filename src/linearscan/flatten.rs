@@ -36,7 +36,7 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
     while queue.len() > 0 {
       let cur = queue.shift();
       visited.insert(cur);
-      for self.get_block(&cur).successors.each() |succ| {
+      for self.blocks.get(&cur).successors.each() |succ| {
         if visited.contains(succ) {
           // Loop detected
           if ends.contains_key(succ) {
@@ -55,12 +55,16 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
 
   fn flatten_assign_indexes(&mut self) {
     let ends = self.flatten_get_ends();
-    let mut loop_index = 0;
+    let mut loop_index = 1;
 
     for ends.each() |start, ends| {
       let mut visited = ~BitvSet::new();
       let mut queue = ~[];
-      let expected_depth = self.get_block(start).loop_depth;
+      let expected_depth = self.blocks.get(start).loop_depth;
+
+      // Decrement number of incoming forward branches
+      assert!(self.blocks.get(start).incoming_forward_branches == 2);
+      self.get_block(start).incoming_forward_branches -= 1;
 
       for ends.each() |end| { queue.push(*end); }
 
@@ -140,7 +144,7 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
     self.instr_id = 0;
     let mut queue = ~[];
     for list.each() |block| {
-      let list = copy self.get_block(block).instructions;
+      let list = copy self.blocks.get(block).instructions;
       let mut new_list = ~[];
       let start_gap = self.create_gap(block);
       new_list.push(start_gap.id);
@@ -200,7 +204,7 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
     let mut result = ~[];
     let mut visited = ~BitvSet::new();
 
-    // Visit each block and find loop ends
+    // Visit each block and its successors
     while queue.len() > 0 {
       let cur = queue.shift();
 
@@ -209,43 +213,19 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
 
       result.push(cur);
 
-      // Visit successors in loop order
-      // TODO(indutny): avoid copying
-      let index = self.get_block(&cur).loop_index;
-      let depth = self.get_block(&cur).loop_depth;
-      let successors = copy self.get_block(&cur).successors;
-      match successors.len() {
-        0 => (),
-        1 => queue.unshift(successors[0]),
-        2 => {
-          let scores = do successors.map() |succ| {
-            let block = self.get_block(succ);
-            let mut res = 0;
+      // Visit successors if they've no unvisited incoming forward edges
+      let successors = copy self.blocks.get(&cur).successors;
+      for successors.each() |succ_id| {
+        let succ = self.get_block(succ_id);
+        if succ.incoming_forward_branches == 0 {
+          loop;
+        }
 
-            if index == block.loop_index {
-              res += 2;
-            }
-
-            if depth <= block.loop_depth {
-              res += 1;
-            }
-
-            MapResult {
-              block: *succ,
-              score: res
-            }
-          };
-
-          if scores[0].score >= scores[1].score {
-            queue.unshift(scores[0].block);
-            queue.push(scores[1].block);
-          } else {
-            queue.unshift(scores[1].block);
-            queue.push(scores[0].block);
-          }
-        },
-        c => fail!(fmt!("Unexpected successor count: %?", c))
-      };
+        succ.incoming_forward_branches -= 1;
+        if succ.incoming_forward_branches == 0 {
+          queue.unshift(*succ_id);
+        }
+      }
     }
 
     // Assign flat ids to every block

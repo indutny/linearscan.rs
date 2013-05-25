@@ -33,6 +33,7 @@ pub struct Block<K> {
   // Fields for flattener
   loop_index: uint,
   loop_depth: uint,
+  incoming_forward_branches: uint,
 
   // Fields for liveness analysis
   live_gen: ~BitvSet,
@@ -534,6 +535,7 @@ pub impl<K: KindHelper+Copy+ToStr> Block<K> {
       predecessors: ~[],
       loop_index: 0,
       loop_depth: 0,
+      incoming_forward_branches: 0,
       live_gen: ~BitvSet::new(),
       live_kill: ~BitvSet::new(),
       live_in: ~BitvSet::new(),
@@ -551,6 +553,8 @@ pub impl<K: KindHelper+Copy+ToStr> Block<K> {
   fn add_predecessor(&mut self, pred: BlockId) {
     assert!(self.predecessors.len() <= 2);
     self.predecessors.push(pred);
+    // NOTE: we'll decrease them later in flatten.rs
+    self.incoming_forward_branches += 1;
   }
 }
 
