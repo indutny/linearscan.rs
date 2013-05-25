@@ -2,7 +2,7 @@ use linearscan::graph::{Graph, KindHelper, Value, InstrId, BlockId, Gap,
                         Phi, ToPhi, User, Swap, Move};
 
 pub trait Generator<K, G> {
-  fn generate(&self, g: &mut ~G);
+  fn generate(&self, g: &mut G);
 }
 
 pub trait GeneratorFunctions<K> {
@@ -36,12 +36,12 @@ pub trait GeneratorFunctions<K> {
 }
 
 pub trait GeneratorHelper<K, G> {
-  fn generate_gap(&self, g: &mut ~G, id: &InstrId);
+  fn generate_gap(&self, g: &mut G, id: &InstrId);
 }
 
 impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > Generator<K, G>
     for Graph<K> {
-  fn generate(&self, g: &mut ~G) {
+  fn generate(&self, g: &mut G) {
     g.prelude();
 
     // Invoke functions in order of increasing instruction id
@@ -60,28 +60,46 @@ impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > Generator<K, G>
 
       // Non-gap instructions
       if !is_gap {
+        // NOTE: call instruction's output is located right after instruction
         let output = match instr.output {
-          Some(out) => Some(self.intervals.get(&out).value),
+          Some(out) => self.get_value(&out, if instr.kind.is_call() {
+            instr.id + 1
+          } else {
+            instr.id
+          }),
           None => None
         };
-        let inputs = instr.inputs.map(|in| self.intervals.get(in).value);
-        let temporary = instr.temporary.map(|t| self.intervals.get(t).value);
+        let inputs = do instr.inputs.map() |in| {
+          self.get_value(in, instr.id).expect("input")
+        };
+        let temporary = do instr.temporary.map() |tmp| {
+          self.get_value(tmp, instr.id).expect("temporary")
+        };
         match instr.kind {
           Phi => fail!("Phi instruction can't be present in graph"),
           ToPhi => {
             assert!(inputs.len() == 1);
-            g.move(output.expect("ToPhi output"), inputs[0]);
+            let out = output.expect("ToPhi output");
+            if out != inputs[0] {
+              g.move(inputs[0], out);
+            }
           },
           Gap => (), // handled separately
           User(k) => g.instr(&k, output, inputs, temporary, block.successors)
         }
       }
 
-      match block.successors.len() {
-        0 => g.epilogue(),
-        1 => g.goto(block.successors[0]),
-        2 => (), // Should be handled in instruction
-        _ => fail!("Too much successors")
+      // Handle last instruction
+      if instr.id == block.end() - 1 {
+        match block.successors.len() {
+          0 => g.epilogue(),
+          1 => if block.successors[0] != block.id + 1 {
+            // Goto to non-consequent successor
+            g.goto(block.successors[0])
+          },
+          2 => (), // Should be handled in instruction
+          _ => fail!("Too much successors")
+        }
       }
     }
   }
@@ -89,7 +107,7 @@ impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > Generator<K, G>
 
 impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > GeneratorHelper<K, G>
     for Graph<K> {
-  fn generate_gap(&self, g: &mut ~G, id: &InstrId) {
+  fn generate_gap(&self, g: &mut G, id: &InstrId) {
     let state = self.gaps.find(id).expect("Gap at instruction");
 
     for state.actions.each() |action| {

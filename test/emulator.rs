@@ -1,7 +1,6 @@
-use linearscan::{Graph, Generator, GeneratorFunctions};
-use linearscan::graph::{User, Gap, Phi, ToPhi, Value, Register, Stack,
-                        BlockId, InstrId,
-                        Move, Swap};
+use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper,
+                 UseKind, UseAny, UseRegister, UseFixed,
+                 Value, Register, Stack, BlockId, InstrId};
 use extra::smallintmap::SmallIntMap;
 
 #[deriving(Eq, ToStr)]
@@ -16,32 +15,93 @@ pub enum Kind {
   Return
 }
 
+impl KindHelper for Kind {
+  fn is_call(&self) -> bool {
+    match self {
+      &Print => true,
+      _ => false
+    }
+  }
+
+  fn tmp_count(&self) -> uint {
+    match self {
+      &BranchIfBigger => 1,
+      _ => 0
+    }
+  }
+
+  fn use_kind(&self, i: uint) -> UseKind {
+    match self {
+      &BranchIfBigger if i == 0 => UseFixed(2),
+      &JustUse => UseFixed(1),
+      &Print => UseFixed(3),
+      &Return => UseFixed(0),
+      _ => UseAny
+    }
+  }
+
+  fn result_kind(&self) -> Option<UseKind> {
+    match self {
+      &Return => None,
+      &BranchIfBigger => None,
+      &JustUse => None,
+      _ => Some(UseRegister)
+    }
+  }
+}
+
+
 pub struct Emulator {
   ip: InstrId,
+  instructions: ~[Instruction],
+  blocks: ~SmallIntMap<uint>,
   result: Option<uint>,
   registers: ~SmallIntMap<uint>,
   stack: ~SmallIntMap<uint>
 }
 
-struct Generators;
+enum Instruction {
+  Move(Value, Value),
+  Swap(Value, Value),
+  UnexpectedEnd,
+  Block(BlockId),
+  Goto(BlockId),
+  Generic(GenericInstruction)
+}
 
-impl GeneratorFunctions<Kind> for Generators {
+struct GenericInstruction {
+  kind: Kind,
+  output: Option<Value>,
+  inputs: ~[Value],
+  temporary: ~[Value],
+  succ: ~[BlockId]
+}
+
+impl GeneratorFunctions<Kind> for Emulator {
   fn prelude(&mut self) {
+    // nop
   }
 
   fn epilogue(&mut self) {
+    self.instructions.push(UnexpectedEnd);
   }
 
   fn swap(&mut self, left: Value, right: Value) {
+    self.instructions.push(Swap(left, right));
   }
 
   fn move(&mut self, from: Value, to: Value) {
+    self.instructions.push(Move(from, to));
   }
 
   fn block(&mut self, id: BlockId) {
+    let ip = self.instructions.len();
+    self.blocks.insert(id, ip);
+    self.instructions.push(Block(id));
   }
 
   fn goto(&mut self, id: BlockId) {
+    self.instructions.push(Goto(id));
   }
 
   fn instr(&mut self,
@@ -50,6 +110,13 @@ impl GeneratorFunctions<Kind> for Generators {
            inputs: &[Value],
            temporary: &[Value],
            succ: &[BlockId]) {
+    self.instructions.push(Generic(GenericInstruction {
+      kind: *kind,
+      output: output,
+      inputs: inputs.to_owned(),
+      temporary: temporary.to_owned(),
+      succ: succ.to_owned()
+    }));
   }
 }
 
@@ -58,131 +125,86 @@ pub impl Emulator {
     Emulator {
       ip: 0,
       result: None,
+      instructions: ~[],
+      blocks: ~SmallIntMap::new(),
       registers: ~SmallIntMap::new(),
       stack: ~SmallIntMap::new()
     }
   }
 
   fn run(&mut self, graph: &Graph<Kind>) -> uint {
-    // Just for testing
-    graph.generate(&mut ~Generators);
+    // Generate instructions
+    graph.generate(self);
 
+    let instructions = copy self.instructions;
     loop {
       // Execution finished
       if self.result.is_some() {
         return self.result.unwrap();
       }
 
-      let instr = graph.instructions.find(&self.ip).expect("No OOB");
-
-      // Call instructions have embedded move
-      if instr.kind.is_call() {
-        self.parallel_move(graph);
-
-        // Return back to instruction
-        self.ip -= 1;
-      }
-
-      // Get output, temporaries
-      let output_pos = if instr.kind.is_call() {
-        instr.id + 1
-      } else {
-        instr.id
-      };
-      let output = match instr.output {
-        Some(out) => Some(graph.get_value(&out, output_pos).unwrap()),
-        None => None
-      };
-      let tmps = do instr.temporary.map() |tmp| {
-        graph.get_value(tmp, instr.id).unwrap()
-      };
-      // And inputs
-      let inputs = do instr.inputs.map() |input| {
-        self.read(graph.get_value(input, instr.id).expect("input"))
-      };
-
-      // Get successor positions
-      let succ = do graph.blocks.get(&instr.block).successors.map() |succ| {
-        graph.blocks.get(succ).start()
-      };
-
-      match instr.kind {
-        Phi => fail!("Impossible, phi should not be executed"),
-        ToPhi => { self.put(output, inputs[0]); self.ip += 1; },
-        Gap => self.parallel_move(graph),
-        User(usr) => self.user_instruction(usr, output, tmps, inputs, succ)
-      };
-
-      // Goto
-      if succ.len() == 1 && self.ip == graph.blocks.get(&instr.block).end() {
-        self.ip = succ[0];
+      match instructions[self.ip] {
+        UnexpectedEnd => fail!("This end was really unexpected"),
+        Block(_) => { self.ip += 1; },
+        Move(from, to) => {
+          let v = self.get(from);
+          self.put(to, v);
+          self.ip += 1;
+        },
+        Swap(left, right) => {
+          let t = self.get(left);
+          let v = self.get(right);
+          self.put(left, v);
+          self.put(right, t);
+          self.ip += 1;
+        },
+        Goto(block) => {
+          let block_ip = self.blocks.find(&block).expect("Block to be present");
+          self.ip = *block_ip;
+        },
+        Generic(ref instr) => self.exec_generic(instr)
       }
     }
   }
 
-  fn read(&self, slot: Value) -> uint {
+  fn get(&self, slot: Value) -> uint {
     match slot {
-      Register(r) => *self.registers.get(&r),
-      Stack(s) => *self.stack.get(&s),
+      Register(r) => *self.registers.find(&r).expect("Defined register"),
+      Stack(s) => *self.stack.find(&s).expect("Defined stack slot"),
       _ => fail!()
     }
   }
 
-  fn put(&mut self, slot: Option<Value>, value: uint) {
-    match slot.expect("Write to slot") {
+  fn put(&mut self, slot: Value, value: uint) {
+    match slot {
       Register(r) => { self.registers.insert(r, value); },
       Stack(s) => { self.stack.insert(s, value); },
       _ => fail!()
     }
   }
 
-  fn parallel_move(&mut self, graph: &Graph<Kind>) {
-    let gap = graph.gaps.get(&self.ip);
+  fn exec_generic(&mut self, instr: &GenericInstruction) {
+    let out = instr.output;
+    let inputs = do instr.inputs.map() |i| { self.get(*i) };
+    let tmp = copy instr.temporary;
 
-    for gap.actions.each() |action| {
-      let from = graph.intervals.get(&action.from).value;
-      let to = graph.intervals.get(&action.to).value;
-
-      match action.kind {
-        Move => {
-          let val = self.read(from);
-          self.put(Some(to), val);
-        },
-        Swap => {
-          let t = self.read(to);
-          let val = self.read(from);
-          self.put(Some(to), val);
-          self.put(Some(from), t);
-        }
-      }
-    };
-
-    self.ip += 1;
-  }
-
-  fn user_instruction(&mut self,
-                      kind: Kind,
-                      out: Option<Value>,
-                      tmps: &[Value],
-                      inputs: &[uint],
-                      successors: &[uint]) {
-    match kind {
-      Increment => self.put(out, inputs[0] + 1),
+    match instr.kind {
+      Increment => self.put(out.expect("Increment out"), inputs[0] + 1),
       JustUse => (), // nop
-      Print => self.put(out, 0),
-      Zero => self.put(out, 0),
-      Ten => self.put(out, 10),
-      Sum => self.put(out, inputs[0] + inputs[1]),
+      Print => self.put(out.expect("Print out"), 0),
+      Zero => self.put(out.expect("Zero out"), 0),
+      Ten => self.put(out.expect("Ten out"), 10),
+      Sum => self.put(out.expect("Sum out"), inputs[0] + inputs[1]),
       Return => {
         self.result = Some(inputs[0]);
         return;
       },
       BranchIfBigger => {
-        self.put(Some(tmps[0]), 0);
+        self.put(tmp[0], 0);
         if inputs[0] > inputs[1] {
-          self.ip = successors[0];
+          self.ip = *self.blocks.find(&instr.succ[0]).expect("branch true");
         } else {
-          self.ip = successors[1];
+          self.ip = *self.blocks.find(&instr.succ[1]).expect("branch false");
         }
         return;
       }

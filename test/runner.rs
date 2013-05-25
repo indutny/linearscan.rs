@@ -1,49 +1,13 @@
 extern mod extra;
 
 use linearscan::{Allocator, Generator, GeneratorFunctions,
-                 Config, Graph, KindHelper,
-                 UseKind, UseAny, UseRegister, UseFixed};
+                 Config, Graph};
 use extra::json::ToJson;
 use emulator::*;
 
 #[path="../src/linearscan.rs"]
 mod linearscan;
 mod emulator;
-
-impl KindHelper for Kind {
-  fn is_call(&self) -> bool {
-    match self {
-      &Print => true,
-      _ => false
-    }
-  }
-
-  fn tmp_count(&self) -> uint {
-    match self {
-      &BranchIfBigger => 1,
-      _ => 0
-    }
-  }
-
-  fn use_kind(&self, i: uint) -> UseKind {
-    match self {
-      &BranchIfBigger if i == 0 => UseFixed(2),
-      &JustUse => UseFixed(1),
-      &Print => UseFixed(3),
-      &Return => UseFixed(0),
-      _ => UseAny
-    }
-  }
-
-  fn result_kind(&self) -> Option<UseKind> {
-    match self {
-      &Return => None,
-      &BranchIfBigger => None,
-      &JustUse => None,
-      _ => Some(UseRegister)
-    }
-  }
-}
 
 fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
   let mut g = ~Graph::new::<Kind>();
