@@ -45,6 +45,7 @@ impl KindHelper for Kind {
       &Return => None,
       &BranchIfBigger => None,
       &JustUse => None,
+      &Nop => None,
       _ => Some(UseRegister)
     }
   }

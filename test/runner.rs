@@ -16,12 +16,6 @@ fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
 
   g.allocate(Config { register_count: 4 }).get();
 
-
-  let writer = io::file_writer(&Path("./1.json"), [io::Create, io::Truncate]);
-  match writer {
-    Ok(writer) => writer.write_str(g.to_json().to_str()),
-    Err(_) => ()
-  };
   let mut emu = Emulator::new();
   let got = emu.run(g);
   if got != expected {
@@ -84,7 +78,7 @@ fn nested_loops() {
     out: InstrId
   }
 
-  do graph_test(25) |g| {
+  do graph_test(125) |g| {
     fn create_loop(g: &mut Graph<Kind>,
                    in: InstrId,
                    f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
@@ -124,10 +118,10 @@ fn nested_loops() {
         // Link loops together
         Some(LoopResult {pre, after, out}) => {
           do g.with_block(body) |b| {
-            b.to_phi(out, res_phi);
             b.goto(pre);
           };
           do g.with_block(after) |b| {
+            b.to_phi(out, res_phi);
             b.goto(cond);
           };
         },
@@ -146,7 +140,9 @@ fn nested_loops() {
 
     let in = g.new_instr(Number(0), ~[]);
     let LoopResult{ pre, after, out } = do create_loop(g, in) |g, in| {
-      do create_loop(g, in) |_, _| { None }
+      do create_loop(g, in) |g, in| {
+        do create_loop(g, in) |_, _| { None }
+      }
     }.unwrap();
 
     // Start

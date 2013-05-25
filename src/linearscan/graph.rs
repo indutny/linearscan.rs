@@ -488,7 +488,7 @@ pub impl<'self, K: KindHelper+Copy+ToStr> BlockBuilder<'self, K> {
       Phi => (),
       _ => fail!("Expected Phi argument")
     };
-    let out = self.graph.get_instr(&phi).output.expect("Phi output");
+    let out = self.graph.instructions.get(&phi).output.expect("Phi output");
 
     let res = Instruction::new_empty(self.graph, ToPhi, ~[input]);
     self.graph.get_instr(&res).output = Some(out);
