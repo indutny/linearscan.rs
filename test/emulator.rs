@@ -9,6 +9,7 @@ pub enum Kind {
   Sum,
   BranchIfBigger,
   JustUse,
+  Nop,
   Print,
   Number(uint),
   Return
@@ -190,6 +191,7 @@ pub impl Emulator {
     match instr.kind {
       Increment => self.put(out.expect("Increment out"), inputs[0] + 1),
       JustUse => (), // nop
+      Nop => (), // nop
       Print => self.put(out.expect("Print out"), 0),
       Number(n) => self.put(out.expect("Number out"), n),
       Sum => self.put(out.expect("Sum out"), inputs[0] + inputs[1]),

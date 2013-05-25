@@ -28,7 +28,7 @@ trait FlattenHelper {
 
 impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
-    let mut queue = ~[self.root];
+    let mut queue = ~[self.root.expect("Root block")];
     let mut visited = ~BitvSet::new();
     let mut ends: ~SmallIntMap<~[BlockId]> = ~SmallIntMap::new();
 
@@ -68,9 +68,12 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
         let cur = queue.shift();
         let block = self.get_block(&cur);
 
+        // Skip visited blocks
+        if !visited.insert(cur) { loop; }
+
         // Set depth and index of not-visited-yet nodes,
         // if we're not visiting nested loop
-        if block.loop_depth == expected_depth && visited.insert(cur) {
+        if block.loop_depth == expected_depth {
           block.loop_index = loop_index;
           block.loop_depth += 1;
         }
@@ -95,11 +98,11 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
     let mut mapping = ~SmallIntMap::new();
 
     for list.each() |id| {
-      let mut block = self.blocks.pop(id).unwrap();
+      let mut block = self.blocks.pop(id).expect("block");
 
       // Update root id
-      if block.id == self.root {
-        self.root = block_id;
+      if block.id == self.root.expect("Root block") {
+        self.root = Some(block_id);
       }
 
       mapping.insert(block.id, block_id);
@@ -122,10 +125,10 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
     while queue.len() > 0 {
       let mut block = queue.pop();
       block.successors = do block.successors.map() |succ| {
-        *mapping.get(succ)
+        *mapping.find(succ).expect("successor")
       };
       block.predecessors = do block.predecessors.map() |pred| {
-        *mapping.get(pred)
+        *mapping.find(pred).expect("predecessor")
       };
       self.blocks.insert(block.id, block);
     }
@@ -193,7 +196,7 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
   fn flatten(&mut self) -> ~[BlockId] {
     self.flatten_assign_indexes();
 
-    let mut queue = ~[self.root];
+    let mut queue = ~[self.root.expect("Root block")];
     let mut result = ~[];
     let mut visited = ~BitvSet::new();
 
@@ -202,47 +205,47 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
       let cur = queue.shift();
 
       // Skip visited blocks
-      if visited.insert(cur) {
-        result.push(cur);
+      if !visited.insert(cur) { loop; }
 
-        // Visit successors in loop order
-        // TODO(indutny): avoid copying
-        let index = self.get_block(&cur).loop_index;
-        let depth = self.get_block(&cur).loop_depth;
-        let successors = copy self.get_block(&cur).successors;
-        match successors.len() {
-          0 => (),
-          1 => queue.unshift(successors[0]),
-          2 => {
-            let scores = do successors.map() |succ| {
-              let block = self.get_block(succ);
-              let mut res = 0;
+      result.push(cur);
 
-              if index == block.loop_index {
-                res += 2;
-              }
+      // Visit successors in loop order
+      // TODO(indutny): avoid copying
+      let index = self.get_block(&cur).loop_index;
+      let depth = self.get_block(&cur).loop_depth;
+      let successors = copy self.get_block(&cur).successors;
+      match successors.len() {
+        0 => (),
+        1 => queue.unshift(successors[0]),
+        2 => {
+          let scores = do successors.map() |succ| {
+            let block = self.get_block(succ);
+            let mut res = 0;
 
-              if depth <= block.loop_depth {
-                res += 1;
-              }
-
-              MapResult {
-                block: *succ,
-                score: res
-              }
-            };
-
-            if scores[0].score >= scores[1].score {
-              queue.unshift(scores[0].block);
-              queue.push(scores[1].block);
-            } else {
-              queue.unshift(scores[1].block);
-              queue.push(scores[0].block);
+            if index == block.loop_index {
+              res += 2;
             }
-          },
-          c => fail!(fmt!("Unexpected successor count: %?", c))
-        };
-      }
+
+            if depth <= block.loop_depth {
+              res += 1;
+            }
+
+            MapResult {
+              block: *succ,
+              score: res
+            }
+          };
+
+          if scores[0].score >= scores[1].score {
+            queue.unshift(scores[0].block);
+            queue.push(scores[1].block);
+          } else {
+            queue.unshift(scores[1].block);
+            queue.push(scores[0].block);
+          }
+        },
+        c => fail!(fmt!("Unexpected successor count: %?", c))
+      };
     }
 
     // Assign flat ids to every block

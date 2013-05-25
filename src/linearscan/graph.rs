@@ -8,7 +8,7 @@ pub type RegisterId = uint;
 pub type StackId = uint;
 
 pub struct Graph<K> {
-  root: BlockId,
+  root: Option<BlockId>,
   block_id: BlockId,
   instr_id: InstrId,
   interval_id: IntervalId,
@@ -124,7 +124,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   /// Create new graph
   fn new() -> Graph<K> {
     Graph {
-      root: 0,
+      root: None,
       block_id: 0,
       instr_id: 0,
       interval_id: 0,
@@ -180,7 +180,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
 
   /// Set graph's root block
   fn set_root(&mut self, id: BlockId) {
-    self.root = id;
+    self.root = Some(id);
   }
 
   /// Create gap (internal)
