@@ -671,6 +671,9 @@ pub impl Interval {
   /// Add use to the interval's use list.
   /// NOTE: uses are ordered by increasing `pos`
   fn add_use(&mut self, kind: UseKind, pos: InstrId) {
+    assert!(self.uses.len() == 0 ||
+            self.uses[0].pos > pos ||
+            self.uses[0].kind.group() == kind.group());
     self.uses.unshift(Use { kind: kind, pos: pos });
   }
 
