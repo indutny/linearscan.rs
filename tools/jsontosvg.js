@@ -445,17 +445,18 @@ Converter.prototype.drawArrows = function drawArrows(block) {
 
 Converter.prototype.drawArrow = function drawArrow(from, to) {
   var path = ['M', from.x, from.y];
+  var curve = 6;
   var depth = Math.log(Math.E *
                        (this.maxDepth + 1 - Math.min(from.depth, to.depth)));
   var distance = Math.log(Math.abs(to.x - from.x - this.interval.paddingX) + 1);
 
   var middle1 = {
     x: from.x + (to.x - from.x) / 4,
-    y: (to.y + from.y) / 2 + 4 * depth * distance
+    y: (to.y + from.y) / 2 + curve * depth * distance
   };
   var middle2 = {
     x: from.x + 3 * (to.x - from.x) / 4,
-    y: (to.y + from.y) / 2 + 4 * depth * distance
+    y: (to.y + from.y) / 2 + curve * depth * distance
   };
 
   path.push('C', middle1.x, middle1.y, middle2.x, middle2.y, to.x, to.y);
