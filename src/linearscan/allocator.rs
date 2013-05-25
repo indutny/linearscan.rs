@@ -533,7 +533,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       self.get_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position
-      match self.intervals.get(id).next_use(spill_pos) {
+      match self.intervals.get(&spill_child).next_use(spill_pos) {
         Some(u) => {
           self.split(*id, Between(spill_pos, u.pos), state);
         },
