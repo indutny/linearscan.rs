@@ -9,12 +9,17 @@ use emulator::*;
 mod linearscan;
 mod emulator;
 
-fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
+fn graph_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
   let mut g = ~Graph::new::<Kind>();
 
   body(&mut *g);
 
-  g.allocate(Config { register_groups: ~[~[0, 1, 2, 3]] }).get();
+  g.allocate(Config {
+    register_groups: ~[
+      ~[0, 1, 2, 3], // normal registers
+      ~[4, 5, 6, 7] // double registers
+    ]
+  }).get();
 
   let mut emu = Emulator::new();
   let got = emu.run(g);
@@ -25,8 +30,8 @@ fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
 
 #[test]
 fn realword_example() {
-  do graph_test(21) |g| {
-    let phi = g.phi(reg_group);
+  do graph_test(Left(21)) |g| {
+    let phi = g.phi(Normal);
 
     let cond = g.empty_block();
     let left = g.empty_block();
@@ -78,13 +83,13 @@ fn nested_loops() {
     out: InstrId
   }
 
-  do graph_test(125) |g| {
+  do graph_test(Left(125)) |g| {
     fn create_loop(g: &mut Graph<Kind>,
                    in: InstrId,
                    f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
         -> Option<LoopResult> {
-      let phi = g.phi(reg_group);
-      let res_phi = g.phi(reg_group);
+      let phi = g.phi(Normal);
+      let res_phi = g.phi(Normal);
       let cond = g.empty_block();
       let body = g.empty_block();
       let after = g.empty_block();
@@ -154,6 +159,36 @@ fn nested_loops() {
 
     do g.with_block(after) |b| {
       b.add(Return, ~[out]);
+      b.end();
+    };
+  };
+}
+
+#[test]
+fn double_and_normal() {
+  do graph_test(Right(286.875)) |g| {
+    do g.block() |b| {
+      b.make_root();
+
+      // Create very high register pressure
+      let mut normals = ~[];
+      let mut doubles = ~[];
+      let count = 16;
+      for uint::range(0, count) |i| {
+        normals.push(b.add(Number(i + 1), ~[]));
+        doubles.push(b.add(DoubleNumber(((i + 1) as float) / 8f), ~[]));
+      }
+
+      let mut total = b.add(DoubleNumber(0f), ~[]);
+      for uint::range_rev(count - 1, 0) |i| {
+        let left = b.add(Sum, ~[normals[i - 1], normals[i]]);
+        let right = b.add(DoubleSum, ~[doubles[i - 1], doubles[i]]);
+        let double_left = b.add(ToDouble, ~[left]);
+
+        let subtotal = b.add(DoubleSum, ~[double_left, right]);
+        total = b.add(DoubleSum, ~[total, subtotal]);
+      }
+      b.add(ReturnDouble, ~[total]);
       b.end();
     };
   };

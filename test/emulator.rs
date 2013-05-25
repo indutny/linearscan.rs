@@ -7,15 +7,21 @@ use extra::smallintmap::SmallIntMap;
 pub enum Kind {
   Increment,
   Sum,
+  DoubleSum,
   BranchIfBigger,
   JustUse,
   Nop,
   Print,
   Number(uint),
-  Return
+  DoubleNumber(float),
+  ToDouble,
+  Return,
+  ReturnDouble
 }
 
-pub static reg_group: GroupId = 0;
+// Register groups
+pub static Normal: GroupId = 0;
+pub static Double: GroupId = 1;
 
 impl KindHelper for Kind {
   fn clobbers(&self, _: GroupId) -> bool {
@@ -27,28 +33,35 @@ impl KindHelper for Kind {
 
   fn temporary(&self) -> ~[GroupId] {
     match self {
-      &BranchIfBigger => ~[reg_group],
+      &BranchIfBigger => ~[Normal],
       _ => ~[]
     }
   }
 
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(reg_group, 2),
-      &JustUse => UseFixed(reg_group, 1),
-      &Print => UseFixed(reg_group, 3),
-      &Return => UseFixed(reg_group, 0),
-      _ => UseAny(reg_group)
+      &BranchIfBigger if i == 0 => UseFixed(Normal, 2),
+      &JustUse => UseFixed(Normal, 1),
+      &Print => UseFixed(Normal, 3),
+      &Return => UseFixed(Normal, 0),
+      &ReturnDouble => UseFixed(Double, 0),
+      &DoubleSum => UseRegister(Double),
+      &ToDouble => UseRegister(Normal),
+      _ => UseAny(Normal)
     }
   }
 
   fn result_kind(&self) -> Option<UseKind> {
     match self {
       &Return => None,
+      &ReturnDouble => None,
       &BranchIfBigger => None,
       &JustUse => None,
       &Nop => None,
-      _ => Some(UseRegister(reg_group))
+      &DoubleNumber(_) => Some(UseAny(Double)),
+      &DoubleSum => Some(UseRegister(Double)),
+      &ToDouble => Some(UseRegister(Double)),
+      _ => Some(UseRegister(Normal))
     }
   }
 }
@@ -57,9 +70,11 @@ pub struct Emulator {
   ip: InstrId,
   instructions: ~[Instruction],
   blocks: ~SmallIntMap<uint>,
-  result: Option<uint>,
-  registers: ~SmallIntMap<~SmallIntMap<uint> >,
-  stack: ~SmallIntMap<~SmallIntMap<uint> >
+  result: Option<Either<uint, float> >,
+  registers: ~SmallIntMap<uint>,
+  double_registers: ~SmallIntMap<float>,
+  stack: ~SmallIntMap<uint>,
+  double_stack: ~SmallIntMap<float>
 }
 
 enum Instruction {
@@ -130,11 +145,13 @@ pub impl Emulator {
       instructions: ~[],
       blocks: ~SmallIntMap::new(),
       registers: ~SmallIntMap::new(),
-      stack: ~SmallIntMap::new()
+      double_registers: ~SmallIntMap::new(),
+      stack: ~SmallIntMap::new(),
+      double_stack: ~SmallIntMap::new()
     }
   }
 
-  fn run(&mut self, graph: &Graph<Kind>) -> uint {
+  fn run(&mut self, graph: &Graph<Kind>) -> Either<uint, float> {
     // Generate instructions
     graph.generate(self);
 
@@ -169,31 +186,29 @@ pub impl Emulator {
     }
   }
 
-  fn get(&self, slot: Value) -> uint {
+  fn get(&self, slot: Value) -> Either<uint, float> {
     match slot {
-      Register(r, g) => *self.registers.find(&g).expect("Defined group")
-                                       .find(&r).expect("Defined register"),
-      Stack(s, g) => *self.stack.find(&g).expect("Defined group")
-                                .find(&s).expect("Defined stack slot"),
+      Register(Normal, r) => Left(*self.registers.find(&r)
+                                       .expect("Defined register")),
+      Register(Double, r) => Right(*self.double_registers.find(&r)
+                                        .expect("Defined double register")),
+      Stack(Normal, s) => Left(*self.stack.find(&s)
+                                    .expect("Defined stack slot")),
+      Stack(Double, s) => Right(*self.double_stack.find(&s)
+                                     .expect("Defined double stack slot")),
       _ => fail!()
     }
   }
 
-  fn put(&mut self, slot: Value, value: uint) {
+  fn put(&mut self, slot: Value, value: Either<uint, float>) {
     match slot {
-      Register(r, g) => {
-        if !self.registers.contains_key(&g) {
-          self.registers.insert(g, ~SmallIntMap::new());
-        }
-        self.registers.find_mut(&g).unwrap().insert(r, value); },
-      Stack(s, g) => {
-        if !self.stack.contains_key(&g) {
-          self.stack.insert(g, ~SmallIntMap::new());
-        }
-        self.stack.find_mut(&g).unwrap().insert(s, value);
-      },
+      Register(Normal, r) => self.registers.insert(r, value.unwrap_left()),
+      Register(Double, r) => self.double_registers
+                                 .insert(r, value.unwrap_right()),
+      Stack(Normal, s) => self.stack.insert(s, value.unwrap_left()),
+      Stack(Double, s) => self.double_stack.insert(s, value.unwrap_right()),
       _ => fail!()
-    }
+    };
   }
 
   fn exec_generic(&mut self, instr: &GenericInstruction) {
@@ -202,19 +217,33 @@ pub impl Emulator {
     let tmp = copy instr.temporary;
 
     match instr.kind {
-      Increment => self.put(out.expect("Increment out"), inputs[0] + 1),
+      Increment => self.put(out.expect("Increment out"),
+                            Left(inputs[0].unwrap_left() + 1)),
       JustUse => (), // nop
       Nop => (), // nop
-      Print => self.put(out.expect("Print out"), 0),
-      Number(n) => self.put(out.expect("Number out"), n),
-      Sum => self.put(out.expect("Sum out"), inputs[0] + inputs[1]),
+      Print => self.put(out.expect("Print out"), Left(0)),
+      Number(n) => self.put(out.expect("Number out"), Left(n)),
+      DoubleNumber(n) => self.put(out.expect("Double Number out"), Right(n)),
+      Sum => self.put(out.expect("Sum out"),
+                      Left(inputs[0].unwrap_left() + inputs[1].unwrap_left())),
+      DoubleSum => self.put(out.expect("Double sum out"),
+                            Right(inputs[0].unwrap_right() +
+                                  inputs[1].unwrap_right())),
+      ToDouble => self.put(out.expect("ToDouble out"),
+                           Right(inputs[0].unwrap_left() as float)),
       Return => {
+        assert!(inputs[0].is_left());
+        self.result = Some(inputs[0]);
+        return;
+      },
+      ReturnDouble => {
+        assert!(inputs[0].is_right());
         self.result = Some(inputs[0]);
         return;
       },
       BranchIfBigger => {
-        self.put(tmp[0], 0);
-        if inputs[0] > inputs[1] {
+        self.put(tmp[0], Left(0));
+        if inputs[0].unwrap_left() > inputs[1].unwrap_left() {
           self.ip = *self.blocks.find(&instr.succ[0]).expect("branch true");
         } else {
           self.ip = *self.blocks.find(&instr.succ[1]).expect("branch false");
