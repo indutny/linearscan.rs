@@ -1,8 +1,10 @@
 use linearscan::graph::{Graph, BlockId, KindHelper, Instruction, UseRegister};
+use linearscan::allocator::{Config};
 use extra::bitv::BitvSet;
 
 pub trait Liveness {
-  fn build_liveranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;
+  fn build_liveranges(&mut self, blocks: &[BlockId], config: Config)
+      -> Result<(), ~str>;
 }
 
 trait LivenessHelper {
@@ -13,17 +15,19 @@ trait LivenessHelper {
   fn build_global(&mut self, blocks: &[BlockId]);
 
   // Build live ranges
-  fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;
+  fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
+      -> Result<(), ~str>;
 
   // Split intervals with fixed uses
   fn split_fixed(&mut self);
 }
 
 impl<K: KindHelper+Copy+ToStr> Liveness for Graph<K> {
-  fn build_liveranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str> {
+  fn build_liveranges(&mut self, blocks: &[BlockId], config: Config)
+      -> Result<(), ~str> {
     self.build_local(blocks);
     self.build_global(blocks);
-    return do self.build_ranges(blocks).chain() |_| {
+    return do self.build_ranges(blocks, config).chain() |_| {
       self.split_fixed();
       Ok(())
     };
@@ -86,7 +90,8 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
     }
   }
 
-  fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str> {
+  fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
+      -> Result<(), ~str> {
     let physical = copy self.physical;
     for blocks.each_reverse() |block_id| {
       let instructions = copy self.blocks.get(block_id).instructions;
@@ -105,9 +110,12 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         let instr: ~Instruction<K> = copy *self.instructions.get(&instr_id);
 
         // Call instructions should swap out all used registers into stack slots
-        if instr.kind.is_call() {
-          for physical.each() |reg| {
-            self.get_interval(reg).add_range(instr_id, instr_id + 1);
+        for config.register_groups.eachi() |group, registers| {
+          if instr.kind.clobbers(group) {
+            for registers.each() |reg| {
+              self.get_interval(physical.get(reg))
+                  .add_range(instr_id, instr_id + 1);
+            }
           }
         }
 
@@ -115,7 +123,8 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         match instr.output {
           Some(output) => {
             // Call instructions are defining their value after the call
-            let pos = if instr.kind.is_call() {
+            let group = self.intervals.get(&output).value.group();
+            let pos = if instr.kind.clobbers(group) {
               instr_id + 1
             } else {
               instr_id
@@ -135,15 +144,13 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         }
 
         // Process temporary
-        if instr.kind.is_call() {
-          if instr.temporary.len() != 0 {
+        for instr.temporary.each() |tmp| {
+          let group = self.intervals.get(tmp).value.group();
+          if instr.kind.clobbers(group) {
             return Err(~"Call instruction can't have temporary registers");
           }
-        } else {
-          for instr.temporary.each() |tmp| {
-            self.get_interval(tmp).add_range(instr_id, instr_id + 1);
-            self.get_interval(tmp).add_use(UseRegister, instr_id);
-          }
+          self.get_interval(tmp).add_range(instr_id, instr_id + 1);
+          self.get_interval(tmp).add_use(UseRegister(group), instr_id);
         }
 
         // Process inputs
@@ -177,7 +184,9 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
       let mut i = 0;
       while i < uses.len() - 1 {
         // Split between each pair of uses
-        let split_pos = self.optimal_split_pos(uses[i].pos, uses[i + 1].pos);
+        let split_pos = self.optimal_split_pos(uses[i].kind.group(),
+                                               uses[i].pos,
+                                               uses[i + 1].pos);
         self.split_at(&cur, split_pos);
 
         i += 1;

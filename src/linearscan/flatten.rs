@@ -1,6 +1,7 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
 use linearscan::graph::{Graph, BlockId, KindHelper, GapState};
+use linearscan::allocator::{Config};
 
 struct MapResult {
   block: BlockId,
@@ -9,7 +10,7 @@ struct MapResult {
 
 pub trait Flatten {
   // Perform flatten itself
-  fn flatten(&mut self) -> ~[BlockId];
+  fn flatten(&mut self, config: Config) -> ~[BlockId];
 }
 
 trait FlattenHelper {
@@ -23,7 +24,7 @@ trait FlattenHelper {
 
   // Assign new ids to blocks and instructions
   fn flatten_reindex_blocks(&mut self, list: &[BlockId]) -> ~[BlockId];
-  fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
+  fn flatten_reindex_instructions(&mut self, list: &[BlockId], config: Config);
 }
 
 impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
@@ -140,7 +141,7 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
     return result;
   }
 
-  fn flatten_reindex_instructions(&mut self, list: &[BlockId]) {
+  fn flatten_reindex_instructions(&mut self, list: &[BlockId], config: Config) {
     self.instr_id = 0;
     let mut queue = ~[];
     for list.each() |block| {
@@ -158,9 +159,10 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
         self.instr_id += 1;
 
         // Call has it's own gap
-        // TODO(indutny) probably move this to graph.rs
-        if instr.kind.is_call() {
-          self.gaps.insert(instr.id, ~GapState { actions: ~[] });
+        for uint::range(0, config.register_groups.len()) |group| {
+          if instr.kind.clobbers(group) {
+            self.gaps.insert(instr.id, ~GapState { actions: ~[] });
+          }
         }
 
         // Construct new block instructions list and insert instruction into
@@ -197,7 +199,7 @@ impl<K: KindHelper+Copy+ToStr> FlattenHelper for Graph<K> {
 }
 
 impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
-  fn flatten(&mut self) -> ~[BlockId] {
+  fn flatten(&mut self, config: Config) -> ~[BlockId] {
     self.flatten_assign_indexes();
 
     let mut queue = ~[self.root.expect("Root block")];
@@ -232,7 +234,7 @@ impl<K: KindHelper+Copy+ToStr> Flatten for Graph<K> {
     result = self.flatten_reindex_blocks(result);
 
     // Assign flat ids to every instruction
-    self.flatten_reindex_instructions(result);
+    self.flatten_reindex_instructions(result, config);
 
     return result;
   }

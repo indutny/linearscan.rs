@@ -1,6 +1,6 @@
 use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper,
                  UseKind, UseAny, UseRegister, UseFixed,
-                 Value, Register, Stack, BlockId, InstrId};
+                 Value, Register, Stack, GroupId, BlockId, InstrId};
 use extra::smallintmap::SmallIntMap;
 
 #[deriving(Eq, ToStr)]
@@ -15,28 +15,30 @@ pub enum Kind {
   Return
 }
 
+pub static reg_group: GroupId = 0;
+
 impl KindHelper for Kind {
-  fn is_call(&self) -> bool {
+  fn clobbers(&self, _: GroupId) -> bool {
     match self {
       &Print => true,
       _ => false
     }
   }
 
-  fn tmp_count(&self) -> uint {
+  fn temporary(&self) -> ~[GroupId] {
     match self {
-      &BranchIfBigger => 1,
-      _ => 0
+      &BranchIfBigger => ~[reg_group],
+      _ => ~[]
     }
   }
 
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(2),
-      &JustUse => UseFixed(1),
-      &Print => UseFixed(3),
-      &Return => UseFixed(0),
-      _ => UseAny
+      &BranchIfBigger if i == 0 => UseFixed(reg_group, 2),
+      &JustUse => UseFixed(reg_group, 1),
+      &Print => UseFixed(reg_group, 3),
+      &Return => UseFixed(reg_group, 0),
+      _ => UseAny(reg_group)
     }
   }
 
@@ -46,7 +48,7 @@ impl KindHelper for Kind {
       &BranchIfBigger => None,
       &JustUse => None,
       &Nop => None,
-      _ => Some(UseRegister)
+      _ => Some(UseRegister(reg_group))
     }
   }
 }
@@ -56,8 +58,8 @@ pub struct Emulator {
   instructions: ~[Instruction],
   blocks: ~SmallIntMap<uint>,
   result: Option<uint>,
-  registers: ~SmallIntMap<uint>,
-  stack: ~SmallIntMap<uint>
+  registers: ~SmallIntMap<~SmallIntMap<uint> >,
+  stack: ~SmallIntMap<~SmallIntMap<uint> >
 }
 
 enum Instruction {
@@ -169,16 +171,27 @@ pub impl Emulator {
 
   fn get(&self, slot: Value) -> uint {
     match slot {
-      Register(r) => *self.registers.find(&r).expect("Defined register"),
-      Stack(s) => *self.stack.find(&s).expect("Defined stack slot"),
+      Register(r, g) => *self.registers.find(&g).expect("Defined group")
+                                       .find(&r).expect("Defined register"),
+      Stack(s, g) => *self.stack.find(&g).expect("Defined group")
+                                .find(&s).expect("Defined stack slot"),
       _ => fail!()
     }
   }
 
   fn put(&mut self, slot: Value, value: uint) {
     match slot {
-      Register(r) => { self.registers.insert(r, value); },
-      Stack(s) => { self.stack.insert(s, value); },
+      Register(r, g) => {
+        if !self.registers.contains_key(&g) {
+          self.registers.insert(g, ~SmallIntMap::new());
+        }
+        self.registers.find_mut(&g).unwrap().insert(r, value); },
+      Stack(s, g) => {
+        if !self.stack.contains_key(&g) {
+          self.stack.insert(g, ~SmallIntMap::new());
+        }
+        self.stack.find_mut(&g).unwrap().insert(s, value);
+      },
       _ => fail!()
     }
   }

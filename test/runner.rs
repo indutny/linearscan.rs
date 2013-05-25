@@ -14,7 +14,7 @@ fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
 
   body(&mut *g);
 
-  g.allocate(Config { register_count: 4 }).get();
+  g.allocate(Config { register_groups: ~[~[0, 1, 2, 3]] }).get();
 
   let mut emu = Emulator::new();
   let got = emu.run(g);
@@ -26,7 +26,7 @@ fn graph_test(expected: uint, body: &fn(b: &mut Graph<Kind>)) {
 #[test]
 fn realword_example() {
   do graph_test(21) |g| {
-    let phi = g.phi();
+    let phi = g.phi(reg_group);
 
     let cond = g.empty_block();
     let left = g.empty_block();
@@ -83,8 +83,8 @@ fn nested_loops() {
                    in: InstrId,
                    f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
         -> Option<LoopResult> {
-      let phi = g.phi();
-      let res_phi = g.phi();
+      let phi = g.phi(reg_group);
+      let res_phi = g.phi(reg_group);
       let cond = g.empty_block();
       let body = g.empty_block();
       let after = g.empty_block();

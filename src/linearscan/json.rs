@@ -37,8 +37,8 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
     obj.insert(~"kind", String(match self.kind {
       User(kind) => kind.to_str(),
       Gap => ~"~gap",
-      ToPhi => ~"~to_phi",
-      Phi => ~"~phi"
+      ToPhi(_) => ~"~to_phi",
+      Phi(_) => ~"~phi"
     }));
     obj.insert(~"inputs", List(do self.inputs.map() |input| {
       Number((*input) as float)
@@ -111,13 +111,14 @@ impl ToJson for Use {
     let mut kind = ~HashMap::new();
 
     match self.kind {
-      UseAny => kind.insert(~"type", String(~"any")),
-      UseRegister => kind.insert(~"type", String(~"reg")),
-      UseFixed(val) => {
+      UseAny(_) => kind.insert(~"type", String(~"any")),
+      UseRegister(_) => kind.insert(~"type", String(~"reg")),
+      UseFixed(_, val) => {
         kind.insert(~"type", String(~"fixed"));
         kind.insert(~"value", val.to_json())
       }
     };
+    obj.insert(~"group", Number(self.kind.group() as float));
     obj.insert(~"kind", Object(kind));
     obj.insert(~"pos", Number(self.pos as float));
 
@@ -128,9 +129,9 @@ impl ToJson for Use {
 impl ToJson for Value {
   fn to_json(&self) -> Json {
     return String(match self {
-      &Virtual => ~"v",
-      &Register(id) => ~"r" + id.to_str(),
-      &Stack(id) => ~"s" + id.to_str()
+      &Virtual(g) => ~"v{" + g.to_str() + ~"}",
+      &Register(_, id) => ~"r" + id.to_str(),
+      &Stack(g, id) => ~"s{" + g.to_str() + ~"} " + id.to_str()
     });
   }
 }
@@ -171,14 +172,11 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
         _ => fail!("Unexpected instruction JSON type")
       };
 
-      match instruction.kind {
-        Gap => {
-          obj.insert(~"gap_state", self.gaps.get(&instruction.id).to_json());
+      match self.gaps.find(&instruction.id) {
+        Some(gap) => {
+          obj.insert(~"gap_state", gap.to_json());
         },
-        k if k.is_call() => {
-          obj.insert(~"gap_state", self.gaps.get(&instruction.id).to_json());
-        },
-        _ => ()
+        None => ()
       }
 
       result.insert(id.to_str(), Object(obj));

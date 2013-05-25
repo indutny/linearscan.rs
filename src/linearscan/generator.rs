@@ -54,7 +54,7 @@ impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > Generator<K, G>
 
       // Call instructions and gaps have GapState
       let is_gap = match instr.kind { Gap => true, _ => false };
-      if instr.kind.is_call() || is_gap {
+      if is_gap || self.gaps.contains_key(id) {
         self.generate_gap(g, id);
       }
 
@@ -62,11 +62,14 @@ impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > Generator<K, G>
       if !is_gap {
         // NOTE: call instruction's output is located right after instruction
         let output = match instr.output {
-          Some(out) => self.get_value(&out, if instr.kind.is_call() {
-            instr.id + 1
-          } else {
-            instr.id
-          }),
+          Some(ref out) => {
+            let group = instr.kind.result_kind().unwrap().group();
+            self.get_value(out, if instr.kind.clobbers(group) {
+              instr.id + 1
+            } else {
+              instr.id
+            })
+          },
           None => None
         };
         let inputs = do instr.inputs.map() |in| {
@@ -76,8 +79,8 @@ impl<K: KindHelper+Copy+ToStr, G: GeneratorFunctions<K> > Generator<K, G>
           self.get_value(tmp, instr.id).expect("temporary")
         };
         match instr.kind {
-          Phi => fail!("Phi instruction can't be present in graph"),
-          ToPhi => {
+          Phi(_) => fail!("Phi instruction can't be present in graph"),
+          ToPhi(_) => {
             assert!(inputs.len() == 1);
             let out = output.expect("ToPhi output");
             if out != inputs[0] {
