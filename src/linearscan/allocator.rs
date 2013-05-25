@@ -20,9 +20,13 @@ struct AllocatorState {
   inactive: ~[IntervalId]
 }
 
+pub struct AllocatorResult {
+  spill_count: StackId
+}
+
 pub trait Allocator {
   // Allocate registers
-  pub fn allocate(&mut self, config: Config) -> Result<(), ~str>;
+  pub fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str>;
 }
 
 enum SplitConf {
@@ -32,7 +36,7 @@ enum SplitConf {
 
 trait AllocatorHelper {
   // Walk unhandled intervals in the order of increasing starting point
-  fn walk_intervals(&mut self, config: Config) -> Result<(), ~str>;
+  fn walk_intervals(&mut self, config: Config) -> Result<AllocatorResult, ~str>;
   // Try allocating free register
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
@@ -81,7 +85,7 @@ trait AllocatorHelper {
 }
 
 impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
-  pub fn allocate(&mut self, config: Config) -> Result<(), ~str> {
+  fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str> {
     // Create physical fixed intervals
     for uint::range(0, config.register_count) |i| {
       let interval = Interval::new(self);
@@ -96,18 +100,19 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
     // Build live_in/live_out
     return do self.build_liveranges(list).chain() |_| {
       // Walk intervals!
-      do self.walk_intervals(config).chain() |_| {
+      do self.walk_intervals(config).chain() |res| {
         self.resolve_data_flow(list);
         self.resolve_gaps();
         self.verify();
-        Ok(())
+        Ok(res)
       }
     };
   }
 }
 
 impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
-  fn walk_intervals(&mut self, config: Config) -> Result<(), ~str> {
+  fn walk_intervals(&mut self, config: Config)
+      -> Result<AllocatorResult, ~str> {
     let mut state = ~AllocatorState {
       config: config,
       spill_count: 0,
@@ -186,7 +191,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       }
     }
 
-    return Ok(());
+    return Ok(AllocatorResult { spill_count: state.spill_count });
   }
 
   fn allocate_free_reg<'r>(&'r mut self,
