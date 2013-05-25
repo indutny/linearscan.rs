@@ -1,5 +1,6 @@
-use linearscan::{Graph};
-use linearscan::graph::{User, Gap, Phi, ToPhi, Value, Register, Stack, InstrId,
+use linearscan::{Graph, Generator, GeneratorFunctions};
+use linearscan::graph::{User, Gap, Phi, ToPhi, Value, Register, Stack,
+                        BlockId, InstrId,
                         Move, Swap};
 use extra::smallintmap::SmallIntMap;
 
@@ -22,9 +23,34 @@ pub struct Emulator {
   stack: ~SmallIntMap<uint>
 }
 
-enum MoveStatus {
-  Moving,
-  Moved
+struct Generators;
+
+impl GeneratorFunctions<Kind> for Generators {
+  fn prelude(&mut self) {
+  }
+
+  fn epilogue(&mut self) {
+  }
+
+  fn swap(&mut self, left: Value, right: Value) {
+  }
+
+  fn move(&mut self, from: Value, to: Value) {
+  }
+
+  fn block(&mut self, id: BlockId) {
+  }
+
+  fn goto(&mut self, id: BlockId) {
+  }
+
+  fn instr(&mut self,
+           kind: &Kind,
+           output: Option<Value>,
+           inputs: &[Value],
+           temporary: &[Value],
+           succ: &[BlockId]) {
+  }
 }
 
 pub impl Emulator {
@@ -38,6 +64,9 @@ pub impl Emulator {
   }
 
   fn run(&mut self, graph: &Graph<Kind>) -> uint {
+    // Just for testing
+    graph.generate(&mut ~Generators);
+
     loop {
       // Execution finished
       if self.result.is_some() {
