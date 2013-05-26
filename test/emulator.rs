@@ -1,6 +1,6 @@
 use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper,
                  UseKind, UseAny, UseRegister, UseFixed,
-                 Value, Register, Stack, GroupId, BlockId, InstrId};
+                 Value, RegisterVal, StackVal, GroupId, BlockId, InstrId};
 use extra::smallintmap::SmallIntMap;
 
 #[deriving(Eq, ToStr)]
@@ -188,25 +188,25 @@ pub impl Emulator {
 
   fn get(&self, slot: Value) -> Either<uint, float> {
     match slot {
-      Register(Normal, r) => Left(*self.registers.find(&r)
-                                       .expect("Defined register")),
-      Register(Double, r) => Right(*self.double_registers.find(&r)
-                                        .expect("Defined double register")),
-      Stack(Normal, s) => Left(*self.stack.find(&s)
-                                    .expect("Defined stack slot")),
-      Stack(Double, s) => Right(*self.double_stack.find(&s)
-                                     .expect("Defined double stack slot")),
+      RegisterVal(Normal, r) => Left(*self.registers.find(&r)
+                                          .expect("Defined register")),
+      RegisterVal(Double, r) => Right(*self.double_registers.find(&r)
+                                           .expect("Defined double register")),
+      StackVal(Normal, s) => Left(*self.stack.find(&s)
+                                       .expect("Defined stack slot")),
+      StackVal(Double, s) => Right(*self.double_stack.find(&s)
+                                        .expect("Defined double stack slot")),
       _ => fail!()
     }
   }
 
   fn put(&mut self, slot: Value, value: Either<uint, float>) {
     match slot {
-      Register(Normal, r) => self.registers.insert(r, value.unwrap_left()),
-      Register(Double, r) => self.double_registers
-                                 .insert(r, value.unwrap_right()),
-      Stack(Normal, s) => self.stack.insert(s, value.unwrap_left()),
-      Stack(Double, s) => self.double_stack.insert(s, value.unwrap_right()),
+      RegisterVal(Normal, r) => self.registers.insert(r, value.unwrap_left()),
+      RegisterVal(Double, r) => self.double_registers
+                                    .insert(r, value.unwrap_right()),
+      StackVal(Normal, s) => self.stack.insert(s, value.unwrap_left()),
+      StackVal(Double, s) => self.double_stack.insert(s, value.unwrap_right()),
       _ => fail!()
     };
   }

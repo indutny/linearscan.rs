@@ -1,7 +1,7 @@
 pub use linearscan::graph::{Graph, KindHelper,
                             UseKind, UseAny, UseRegister, UseFixed,
                             GroupId, BlockId, InstrId,
-                            Virtual, Value, Register, Stack};
+                            Value, RegisterVal, StackVal};
 pub use linearscan::allocator::{Allocator, Config};
 pub use linearscan::generator::{Generator, GeneratorFunctions};
 

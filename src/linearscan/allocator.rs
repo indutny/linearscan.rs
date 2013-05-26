@@ -1,7 +1,7 @@
 use linearscan::graph::{Graph, KindHelper, Interval,
                         IntervalId, InstrId, RegisterId, StackId, BlockId,
                         UseAny, UseRegister, UseFixed, GroupId,
-                        Value, Register, Stack};
+                        Value, RegisterVal, StackVal};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 use linearscan::gap::GapResolver;
@@ -100,7 +100,7 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
       self.physical.insert(group, ~SmallIntMap::new());
       for uint::range(0, count) |reg| {
         let interval = Interval::new(self, 0);
-        self.get_interval(&interval).value = Register(group, reg);
+        self.get_interval(&interval).value = RegisterVal(group, reg);
         self.get_interval(&interval).fixed = true;
         self.physical.find_mut(&group).unwrap().insert(reg, interval);
       }
@@ -226,7 +226,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
       // Push register interval to active
       match self.intervals.get(&current).value {
-        Register(_, _) => state.active.push(current),
+        RegisterVal(_, _) => state.active.push(current),
         _ => ()
       }
     }
@@ -319,7 +319,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
     }
 
     // Give current a register
-    self.get_interval(&current).value = Register(state.group, reg);
+    self.get_interval(&current).value = RegisterVal(state.group, reg);
 
     return true;
   }
@@ -413,7 +413,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
           self.split(current, Between(start, u.pos), state);
         } else {
           // Assign register to current
-          self.get_interval(&current).value = Register(state.group, reg);
+          self.get_interval(&current).value = RegisterVal(state.group, reg);
 
           // If blocked somewhere before end by fixed interval
           if block_pos[reg] <= self.get_interval(&current).end() {
@@ -438,7 +438,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                      f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool {
     for state.active.each() |id| {
       match self.intervals.get(id).value {
-        Register(_, reg) => if !f(id, reg) { break },
+        RegisterVal(_, reg) => if !f(id, reg) { break },
         _ => fail!("Expected register in active")
       };
     }
@@ -454,7 +454,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
     for state.inactive.each() |id| {
       match self.get_intersection(id, &current) {
         Some(pos) => match self.intervals.get(id).value {
-          Register(_, reg) => if !f(id, reg, pos) { break },
+          RegisterVal(_, reg) => if !f(id, reg, pos) { break },
           _ => fail!("Expected register in inactive")
         },
         None => ()
@@ -492,7 +492,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                          current: IntervalId,
                          state: &'r mut AllocatorState) {
     let reg = match self.intervals.get(&current).value {
-      Register(_, r) => r,
+      RegisterVal(_, r) => r,
       _ => fail!("Expected register value")
     };
     let start = self.intervals.get(&current).start();
@@ -585,11 +585,11 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
             // Any use - no restrictions
             UseAny(_) => (),
             UseRegister(_) => match interval.value {
-              Register(_, _) => (), // ok
+              RegisterVal(_, _) => (), // ok
               _ => fail!("Register expected")
             },
             UseFixed(_, r0) => match interval.value {
-              Register(_, r1) if r0 == r1 => (), // ok
+              RegisterVal(_, r1) if r0 == r1 => (), // ok
               _ => fail!("Expected fixed register")
             }
           }
@@ -610,13 +610,13 @@ impl AllocatorState {
     } else {
       let slot = self.spill_count;
       self.spill_count += 1;
-      Stack(self.group, slot)
+      StackVal(self.group, slot)
     }
   }
 
   fn to_handled(&mut self, value: Value) {
     match value {
-      Stack(group, slot) => self.spills.push(Stack(group, slot)),
+      StackVal(group, slot) => self.spills.push(StackVal(group, slot)),
       _ => ()
     }
   }

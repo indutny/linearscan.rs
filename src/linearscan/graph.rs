@@ -77,9 +77,9 @@ pub struct Interval {
 
 #[deriving(Eq)]
 pub enum Value {
-  Virtual(GroupId),
-  Register(GroupId, RegisterId),
-  Stack(GroupId, StackId)
+  VirtualVal(GroupId),
+  RegisterVal(GroupId, RegisterId),
+  StackVal(GroupId, StackId)
 }
 
 pub struct Use {
@@ -617,7 +617,7 @@ pub impl Interval {
                              group: GroupId) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
-      value: Virtual(group),
+      value: VirtualVal(group),
       ranges: ~[],
       parent: None,
       uses: ~[],
@@ -771,16 +771,16 @@ impl LiveRange {
 impl Value {
   fn is_virtual(&self) -> bool {
     match self {
-      &Virtual(_) => true,
+      &VirtualVal(_) => true,
       _ => false
     }
   }
 
   fn group(&self) -> GroupId {
     match self {
-      &Virtual(g) => g,
-      &Register(g, _) => g,
-      &Stack(g, _) => g
+      &VirtualVal(g) => g,
+      &RegisterVal(g, _) => g,
+      &StackVal(g, _) => g
     }
   }
 }

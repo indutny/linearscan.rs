@@ -3,7 +3,8 @@ use std::hashmap::HashMap;
 use linearscan::graph::{Graph, Block, Instruction, Interval, LiveRange,
                         User, Gap, GapState, Move, Swap, ToPhi, Phi,
                         Use, UseAny, UseRegister, UseFixed,
-                        Value, Virtual, Register, Stack, KindHelper};
+                        Value, VirtualVal, RegisterVal, StackVal,
+                        KindHelper};
 
 trait JsonHelper {
   fn get_blocks(&self) -> Json;
@@ -129,9 +130,9 @@ impl ToJson for Use {
 impl ToJson for Value {
   fn to_json(&self) -> Json {
     return String(match self {
-      &Virtual(g) => ~"v{" + g.to_str() + ~"}",
-      &Register(g, id) => ~"r{" + g.to_str() + ~"}" + id.to_str(),
-      &Stack(g, id) => ~"s{" + g.to_str() + ~"}" + id.to_str()
+      &VirtualVal(g) => ~"v{" + g.to_str() + ~"}",
+      &RegisterVal(g, id) => ~"r{" + g.to_str() + ~"}" + id.to_str(),
+      &StackVal(g, id) => ~"s{" + g.to_str() + ~"}" + id.to_str()
     });
   }
 }
