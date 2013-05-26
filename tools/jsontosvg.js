@@ -317,7 +317,7 @@ Converter.prototype.drawInstructions = function drawInstructions() {
       var parent = interval.parent !== null ? interval.parent : interval.id;
       return '<tspan ' +
              'class="r-' + parent + '">' +
-             (interval.value === 'v' ? 'v' + interval.id : interval.value) +
+             internal.value +
              '</tspan>';
     }
 
