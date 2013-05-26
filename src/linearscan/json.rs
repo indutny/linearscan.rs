@@ -130,8 +130,8 @@ impl ToJson for Value {
   fn to_json(&self) -> Json {
     return String(match self {
       &Virtual(g) => ~"v{" + g.to_str() + ~"}",
-      &Register(_, id) => ~"r" + id.to_str(),
-      &Stack(g, id) => ~"s{" + g.to_str() + ~"} " + id.to_str()
+      &Register(g, id) => ~"r{" + g.to_str() + ~"}" + id.to_str(),
+      &Stack(g, id) => ~"s{" + g.to_str() + ~"}" + id.to_str()
     });
   }
 }
