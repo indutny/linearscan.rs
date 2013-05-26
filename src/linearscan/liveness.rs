@@ -22,7 +22,7 @@ trait LivenessHelper {
   fn split_fixed(&mut self);
 }
 
-impl<K: KindHelper+Copy+ToStr> Liveness for Graph<K> {
+impl<K: KindHelper+Copy> Liveness for Graph<K> {
   fn build_liveranges(&mut self, blocks: &[BlockId], config: Config)
       -> Result<(), ~str> {
     self.build_local(blocks);
@@ -34,7 +34,7 @@ impl<K: KindHelper+Copy+ToStr> Liveness for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
+impl<K: KindHelper+Copy> LivenessHelper for Graph<K> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
       let instructions = copy self.blocks.get(block).instructions;

@@ -122,7 +122,7 @@ pub trait KindHelper {
   fn result_kind(&self) -> Option<UseKind>;
 }
 
-pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
+pub impl<K: KindHelper+Copy> Graph<K> {
   /// Create new graph
   fn new() -> Graph<K> {
     Graph {
@@ -460,7 +460,7 @@ pub impl<K: KindHelper+Copy+ToStr> Graph<K> {
   }
 }
 
-pub impl<'self, K: KindHelper+Copy+ToStr> BlockBuilder<'self, K> {
+pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   /// add instruction to block
   fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = self.graph.new_instr(kind, args);
@@ -530,7 +530,7 @@ pub impl<'self, K: KindHelper+Copy+ToStr> BlockBuilder<'self, K> {
   }
 }
 
-pub impl<K: KindHelper+Copy+ToStr> Block<K> {
+pub impl<K: KindHelper+Copy> Block<K> {
   /// Create new empty block
   fn new(graph: &mut Graph<K>) -> Block<K> {
     Block {
@@ -563,7 +563,7 @@ pub impl<K: KindHelper+Copy+ToStr> Block<K> {
   }
 }
 
-pub impl<K: KindHelper+Copy+ToStr> Instruction<K> {
+pub impl<K: KindHelper+Copy> Instruction<K> {
   /// Create instruction without output interval
   fn new_empty(graph: &mut Graph<K>,
                kind: InstrKind<K>,
@@ -613,8 +613,8 @@ pub impl<K: KindHelper+Copy+ToStr> Instruction<K> {
 
 pub impl Interval {
   /// Create new virtual interval
-  fn new<K: KindHelper+Copy+ToStr>(graph: &mut Graph<K>,
-                                   group: GroupId) -> IntervalId {
+  fn new<K: KindHelper+Copy>(graph: &mut Graph<K>,
+                             group: GroupId) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: Virtual(group),
@@ -709,7 +709,7 @@ pub impl Interval {
   }
 }
 
-impl<K: KindHelper+Copy+ToStr> KindHelper for InstrKind<K> {
+impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
   /// Return true if instruction is clobbering registers
   fn clobbers(&self, group: GroupId) -> bool {
     match self {
@@ -815,7 +815,7 @@ pub impl GapState {
   }
 }
 
-pub impl<K: KindHelper+Copy+ToStr> Block<K> {
+pub impl<K: KindHelper+Copy> Block<K> {
   fn start(&self) -> InstrId {
     assert!(self.instructions.len() != 0);
     return *self.instructions.head();

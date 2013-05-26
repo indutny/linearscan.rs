@@ -93,7 +93,7 @@ trait AllocatorHelper {
   fn verify(&self);
 }
 
-impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
+impl<K: KindHelper+Copy> Allocator for Graph<K> {
   fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str> {
     // Create physical fixed intervals
     for config.register_groups.eachi() |group, &count| {
@@ -145,7 +145,7 @@ impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
+impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
   fn walk_intervals(&mut self,
                     group: GroupId,
                     config: Config) -> Result<GroupResult, ~str> {
