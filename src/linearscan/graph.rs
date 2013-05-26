@@ -17,7 +17,7 @@ pub struct Graph<K> {
   blocks: ~SmallIntMap<~Block<K> >,
   instructions: ~SmallIntMap<~Instruction<K> >,
   gaps: ~SmallIntMap<~GapState>,
-  physical: ~SmallIntMap<IntervalId>
+  physical: ~SmallIntMap<~SmallIntMap<IntervalId> >
 }
 
 pub struct BlockBuilder<'self, K> {

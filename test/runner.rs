@@ -16,8 +16,8 @@ fn graph_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
 
   g.allocate(Config {
     register_groups: ~[
-      ~[0, 1, 2, 3], // normal registers
-      ~[4, 5, 6, 7] // double registers
+      4, // normal registers
+      4  // double registers
     ]
   }).get();
 

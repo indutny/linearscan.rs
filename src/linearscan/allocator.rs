@@ -6,9 +6,10 @@ use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 use linearscan::gap::GapResolver;
 use extra::sort::quick_sort;
+use extra::smallintmap::SmallIntMap;
 
 pub struct Config {
-  register_groups: ~[~[RegisterId]]
+  register_groups: ~[RegisterId]
 }
 
 pub struct AllocatorResult {
@@ -22,8 +23,7 @@ struct GroupResult {
 struct AllocatorState {
   config: Config,
   group: GroupId,
-  register_min: RegisterId,
-  register_max: RegisterId,
+  register_count: RegisterId,
   spill_count: StackId,
   spills: ~[Value],
   unhandled: ~[IntervalId],
@@ -95,14 +95,14 @@ trait AllocatorHelper {
 
 impl<K: KindHelper+Copy+ToStr> Allocator for Graph<K> {
   fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str> {
-    // XXX: Verify groups
     // Create physical fixed intervals
-    for config.register_groups.eachi() |group_id, group| {
-      for group.each() |reg| {
+    for config.register_groups.eachi() |group, &count| {
+      self.physical.insert(group, ~SmallIntMap::new());
+      for uint::range(0, count) |reg| {
         let interval = Interval::new(self, 0);
-        self.get_interval(&interval).value = Register(group_id, *reg);
+        self.get_interval(&interval).value = Register(group, reg);
         self.get_interval(&interval).fixed = true;
-        self.physical.insert(*reg, interval);
+        self.physical.find_mut(&group).unwrap().insert(reg, interval);
       }
     }
 
@@ -150,13 +150,11 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
                     group: GroupId,
                     config: Config) -> Result<GroupResult, ~str> {
     // Initialize allocator state
-    let reg_max = config.register_groups[group].max();
-    let reg_min = config.register_groups[group].min();
+    let reg_count = config.register_groups[group];
     let mut state = ~AllocatorState {
       config: config,
       group: group,
-      register_max: reg_max,
-      register_min: reg_min,
+      register_count: reg_count,
       spill_count: 0,
       spills: ~[],
       unhandled: ~[],
@@ -239,8 +237,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
                            state: &'r mut AllocatorState) -> bool {
-    let mut free_pos = vec::from_elem(state.register_max + 1,
-                                      uint::max_value);
+    let mut free_pos = vec::from_elem(state.register_count, uint::max_value);
 
     // All active intervals use registers
     for self.each_active(state) |_, reg| {
@@ -272,7 +269,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       // Other intervals should prefer register that's free for a longer time
       None => {
         for free_pos.eachi() |i, pos| {
-          if i >= state.register_min && *pos > max_pos {
+          if *pos > max_pos {
             max_pos = *pos;
             reg = i;
           }
@@ -331,10 +328,8 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
                               current: IntervalId,
                               state: &'r mut AllocatorState)
       -> Result<(), ~str> {
-    let mut use_pos = vec::from_elem(state.register_max + 1,
-                                     uint::max_value);
-    let mut block_pos = vec::from_elem(state.register_max + 1,
-                                       uint::max_value);
+    let mut use_pos = vec::from_elem(state.register_count, uint::max_value);
+    let mut block_pos = vec::from_elem(state.register_count, uint::max_value);
     let start = self.get_interval(&current).start();
 
     // Populate use_pos from every non-fixed interval
@@ -395,7 +390,7 @@ impl<K: KindHelper+Copy+ToStr> AllocatorHelper for Graph<K> {
       // Other intervals should prefer register that isn't used for longer time
       None => {
         for use_pos.eachi() |i, pos| {
-          if i >= state.register_min && *pos > max_pos {
+          if *pos > max_pos {
             max_pos = *pos;
             reg = i;
           }

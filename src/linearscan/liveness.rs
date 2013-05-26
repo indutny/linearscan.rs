@@ -110,10 +110,10 @@ impl<K: KindHelper+Copy+ToStr> LivenessHelper for Graph<K> {
         let instr: ~Instruction<K> = copy *self.instructions.get(&instr_id);
 
         // Call instructions should swap out all used registers into stack slots
-        for config.register_groups.eachi() |group, registers| {
+        for config.register_groups.eachi() |group, &count| {
           if instr.kind.clobbers(group) {
-            for registers.each() |reg| {
-              self.get_interval(physical.get(reg))
+            for uint::range(0, count) |reg| {
+              self.get_interval(physical.get(&group).get(&reg))
                   .add_range(instr_id, instr_id + 1);
             }
           }
