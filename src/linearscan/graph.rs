@@ -188,7 +188,6 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   /// Create gap (internal)
   fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
     let id = self.instr_id();
-    self.gaps.insert(id, ~GapState { actions: ~[] });
     return ~Instruction {
       id: id,
       block: *block,
@@ -217,6 +216,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
 
   /// Mutable gap state getter
   fn get_gap<'r>(&'r mut self, id: &InstrId) -> &'r mut ~GapState {
+    if !self.gaps.contains_key(id) {
+      self.gaps.insert(*id, ~GapState { actions: ~[] });
+    }
     self.gaps.find_mut(id).unwrap()
   }
 

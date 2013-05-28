@@ -111,16 +111,17 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
 impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > GeneratorHelper<K, G>
     for Graph<K> {
   fn generate_gap(&self, g: &mut G, id: &InstrId) {
-    let state = self.gaps.find(id).expect("Gap at instruction");
+    match self.gaps.find(id) {
+      Some(state) => for state.actions.each() |action| {
+        let from = self.intervals.get(&action.from).value;
+        let to = self.intervals.get(&action.to).value;
 
-    for state.actions.each() |action| {
-      let from = self.intervals.get(&action.from).value;
-      let to = self.intervals.get(&action.to).value;
-
-      match action.kind {
-        Swap => g.swap(from, to),
-        Move => g.move(from, to)
-      }
+        match action.kind {
+          Swap => g.swap(from, to),
+          Move => g.move(from, to)
+        }
+      },
+      None => ()
     }
   }
 }
