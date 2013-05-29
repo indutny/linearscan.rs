@@ -193,3 +193,47 @@ fn double_and_normal() {
     };
   };
 }
+
+#[test]
+fn parallel_move_cycles() {
+  do graph_test(Left(1234)) |g| {
+    do g.block() |b| {
+      b.make_root();
+
+      let n1 = b.add(Number(1), ~[]);
+      let n2 = b.add(Number(2), ~[]);
+      let n3 = b.add(Number(3), ~[]);
+      let n4 = b.add(Number(4), ~[]);
+
+      // 1 <=> 2
+      b.add(FixedUse, ~[n1, n2, n3, n4]);
+      b.add(FixedUse, ~[n2, n1, n3, n4]);
+
+      // 1 <=> 2, 3 <=> 4
+      b.add(FixedUse, ~[n1, n2, n3, n4]);
+      b.add(FixedUse, ~[n2, n1, n4, n3]);
+
+      // shift
+      b.add(FixedUse, ~[n1, n2, n3, n4]);
+      b.add(FixedUse, ~[n4, n1, n2, n3]);
+
+      // reverse shift
+      b.add(FixedUse, ~[n1, n2, n3, n4]);
+      b.add(FixedUse, ~[n2, n3, n4, n1]);
+
+      // mixed
+      b.add(FixedUse, ~[n1, n2, n3, n4]);
+      b.add(FixedUse, ~[n3, n2, n4, n1]);
+
+      let ten = b.add(Number(10), ~[]);
+      let mut res = b.add(Number(0), ~[]);
+      res = b.add(MultAdd, ~[res, ten, n1]);
+      res = b.add(MultAdd, ~[res, ten, n2]);
+      res = b.add(MultAdd, ~[res, ten, n3]);
+      res = b.add(MultAdd, ~[res, ten, n4]);
+
+      b.add(Return, ~[res]);
+      b.end();
+    };
+  };
+}

@@ -77,7 +77,7 @@ impl<K: KindHelper+Copy> GapResolverHelper for Graph<K> {
           ToMove => {
             let r = self.move_one(actions, j, s, result);
             if r {
-              assert!(circular);
+              assert!(!circular);
               circular = true;
             }
           },

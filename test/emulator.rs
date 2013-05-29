@@ -8,8 +8,10 @@ pub enum Kind {
   Increment,
   Sum,
   DoubleSum,
+  MultAdd,
   BranchIfBigger,
   JustUse,
+  FixedUse,
   Nop,
   Print,
   Number(uint),
@@ -42,6 +44,7 @@ impl KindHelper for Kind {
     match self {
       &BranchIfBigger if i == 0 => UseFixed(Normal, 2),
       &JustUse => UseFixed(Normal, 1),
+      &FixedUse => UseFixed(Normal, i),
       &Print => UseFixed(Normal, 3),
       &Return => UseFixed(Normal, 0),
       &ReturnDouble => UseFixed(Double, 0),
@@ -57,6 +60,7 @@ impl KindHelper for Kind {
       &ReturnDouble => None,
       &BranchIfBigger => None,
       &JustUse => None,
+      &FixedUse => None,
       &Nop => None,
       &DoubleNumber(_) => Some(UseAny(Double)),
       &DoubleSum => Some(UseRegister(Double)),
@@ -220,12 +224,17 @@ pub impl Emulator {
       Increment => self.put(out.expect("Increment out"),
                             Left(inputs[0].unwrap_left() + 1)),
       JustUse => (), // nop
+      FixedUse => (), // nop
       Nop => (), // nop
       Print => self.put(out.expect("Print out"), Left(0)),
       Number(n) => self.put(out.expect("Number out"), Left(n)),
       DoubleNumber(n) => self.put(out.expect("Double Number out"), Right(n)),
       Sum => self.put(out.expect("Sum out"),
                       Left(inputs[0].unwrap_left() + inputs[1].unwrap_left())),
+      MultAdd => self.put(out.expect("Mult add out"),
+                          Left(inputs[0].unwrap_left() *
+                                 inputs[1].unwrap_left() +
+                               inputs[2].unwrap_left())),
       DoubleSum => self.put(out.expect("Double sum out"),
                             Right(inputs[0].unwrap_right() +
                                   inputs[1].unwrap_right())),

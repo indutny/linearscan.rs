@@ -317,7 +317,7 @@ Converter.prototype.drawInstructions = function drawInstructions() {
       var parent = interval.parent !== null ? interval.parent : interval.id;
       return '<tspan ' +
              'class="r-' + parent + '">' +
-             internal.value +
+             interval.value +
              '</tspan>';
     }
 
@@ -346,7 +346,10 @@ Converter.prototype.drawInstructions = function drawInstructions() {
       // Print gap state
       res += ' [';
       res += instr.gap_state.actions.map(function(act) {
-        return act.from + (act.type === 'move' ? ' => ' : ' <=> ') + act.to;
+        return interval_to_str(act.from) +
+               (act.type === 'move' ? ' =&gt; ' :
+                                      ' &lt;=&gt; ') +
+               interval_to_str(act.to);
       }).join(', ');
       res += ']';
     }
