@@ -68,6 +68,7 @@ pub enum InstrKind<K> {
 pub struct Interval {
   id: IntervalId,
   value: Value,
+  hint: Option<IntervalId>,
   ranges: ~[LiveRange],
   parent: Option<IntervalId>,
   uses: ~[Use],
@@ -343,6 +344,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
     self.get_interval(&child).ranges = child_ranges;
     self.get_interval(&split_parent).ranges = parent_ranges;
 
+    // Insert register hint
+    self.get_interval(&child).hint = Some(split_parent);
+
     // Move out uses
     let mut child_uses =  ~[];
     let split_on_call = self.instructions.get(&pos).kind.clobbers(group);
@@ -496,6 +500,13 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
       _ => fail!("Expected Phi argument")
     };
     let out = self.graph.instructions.get(&phi).output.expect("Phi output");
+    let in = self.graph.instructions.get(&input).output
+                 .expect("Phi input output");
+
+    // Insert one hint
+    if self.graph.intervals.get(&out).hint.is_none() {
+      self.graph.get_interval(&out).hint = Some(in);
+    }
 
     let res = Instruction::new_empty(self.graph, ToPhi(group), ~[input]);
     self.graph.get_instr(&res).output = Some(out);
@@ -620,6 +631,7 @@ pub impl Interval {
     let r = Interval {
       id: graph.interval_id(),
       value: VirtualVal(group),
+      hint: None,
       ranges: ~[],
       parent: None,
       uses: ~[],

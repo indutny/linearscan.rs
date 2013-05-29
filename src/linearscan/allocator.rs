@@ -65,6 +65,9 @@ trait AllocatorHelper {
   // Sort unhandled list (after insertion)
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
 
+  // Get register hint if present
+  fn get_hint(&mut self, current: IntervalId) -> Option<RegisterId>;
+
   // Split interval at some optimal position and add split child to unhandled
   fn split<'r>(&'r mut self,
                current: IntervalId,
@@ -238,6 +241,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                            current: IntervalId,
                            state: &'r mut AllocatorState) -> bool {
     let mut free_pos = vec::from_elem(state.register_count, uint::max_value);
+    let hint = self.get_hint(current);
 
     // All active intervals use registers
     for self.each_active(state) |_, reg| {
@@ -268,10 +272,19 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
       // Other intervals should prefer register that's free for a longer time
       None => {
-        for free_pos.eachi() |i, pos| {
-          if *pos > max_pos {
-            max_pos = *pos;
-            reg = i;
+        // Prefer hinted register
+        match hint {
+          Some(hint) => for free_pos.eachi() |i, &pos| {
+            if pos > max_pos || hint == i && pos == max_pos {
+              max_pos = pos;
+              reg = i;
+            }
+          },
+          None => for free_pos.eachi() |i, &pos| {
+            if pos > max_pos {
+              max_pos = pos;
+              reg = i;
+            }
           }
         }
       }
@@ -331,6 +344,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
     let mut use_pos = vec::from_elem(state.register_count, uint::max_value);
     let mut block_pos = vec::from_elem(state.register_count, uint::max_value);
     let start = self.get_interval(&current).start();
+    let hint = self.get_hint(current);
 
     // Populate use_pos from every non-fixed interval
     for self.each_active(state) |id, reg| {
@@ -389,10 +403,19 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
       // Other intervals should prefer register that isn't used for longer time
       None => {
-        for use_pos.eachi() |i, pos| {
-          if *pos > max_pos {
-            max_pos = *pos;
-            reg = i;
+        // Prefer hinted register
+        match hint {
+          Some(hint) => for use_pos.eachi() |i, &pos| {
+            if pos > max_pos || hint == i && pos == max_pos {
+              max_pos = pos;
+              reg = i;
+            }
+          },
+          None => for use_pos.eachi() |i, &pos| {
+            if pos > max_pos {
+              max_pos = pos;
+              reg = i;
+            }
           }
         }
       }
@@ -471,6 +494,19 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
       lstart <= rstart
     };
+  }
+
+  fn get_hint(&mut self, current: IntervalId) -> Option<RegisterId> {
+    match self.intervals.get(&current).hint {
+      Some(ref id) => match self.intervals.get(id).value {
+        RegisterVal(g, r) => {
+          assert!(g == self.intervals.get(&current).value.group());
+          Some(r)
+        },
+        _ => None
+      },
+      None => None
+    }
   }
 
   fn split<'r>(&'r mut self,
