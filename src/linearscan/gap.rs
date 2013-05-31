@@ -1,3 +1,4 @@
+use std::vec;
 use linearscan::graph::{Graph, KindHelper, InstrId, GapState, GapAction,
                         Move, Swap};
 

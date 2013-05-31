@@ -130,9 +130,9 @@ impl ToJson for Use {
 impl ToJson for Value {
   fn to_json(&self) -> Json {
     return String(match self {
-      &VirtualVal(g) => ~"v{" + g.to_str() + ~"}",
-      &RegisterVal(g, id) => ~"r{" + g.to_str() + ~"}" + id.to_str(),
-      &StackVal(g, id) => ~"s{" + g.to_str() + ~"}" + id.to_str()
+      &VirtualVal(g) => ~"v{" + g.to_str() + "}",
+      &RegisterVal(g, id) => ~"r{" + g.to_str() + "}" + id.to_str(),
+      &StackVal(g, id) => ~"s{" + g.to_str() + "}" + id.to_str()
     });
   }
 }

@@ -1,3 +1,6 @@
+use extra::sort::quick_sort;
+use extra::smallintmap::SmallIntMap;
+use std::{vec, uint};
 use linearscan::graph::{Graph, KindHelper, Interval,
                         IntervalId, InstrId, RegisterId, StackId, BlockId,
                         UseAny, UseRegister, UseFixed, GroupId,
@@ -5,8 +8,6 @@ use linearscan::graph::{Graph, KindHelper, Interval,
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 use linearscan::gap::GapResolver;
-use extra::sort::quick_sort;
-use extra::smallintmap::SmallIntMap;
 
 pub struct Config {
   register_groups: ~[RegisterId]

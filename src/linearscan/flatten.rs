@@ -1,5 +1,6 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
+use std::uint;
 use linearscan::graph::{Graph, BlockId, KindHelper, GapState};
 use linearscan::allocator::{Config};
 

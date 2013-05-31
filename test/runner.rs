@@ -1,8 +1,9 @@
 extern mod extra;
 
+use extra::json::ToJson;
+use std::uint;
 use linearscan::{Allocator, Generator, GeneratorFunctions,
                  Config, Graph, InstrId, BlockId};
-use extra::json::ToJson;
 use emulator::*;
 
 #[path="../src/linearscan.rs"]

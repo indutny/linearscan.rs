@@ -1,5 +1,6 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
+use std::{vec, uint};
 
 pub type BlockId = uint;
 pub type InstrId = uint;
