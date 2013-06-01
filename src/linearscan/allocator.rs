@@ -33,6 +33,9 @@ struct AllocatorState {
 }
 
 pub trait Allocator {
+  // Prepare for allocation
+  pub fn prepare(&mut self);
+
   // Allocate registers
   pub fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str>;
 }
@@ -105,7 +108,23 @@ trait AllocatorHelper {
 }
 
 impl<K: KindHelper+Copy> Allocator for Graph<K> {
+  fn prepare(&mut self) {
+    if self.prepared {
+      return;
+    }
+
+    // Get flat list of blocks
+    self.flatten();
+
+    // Build live_in/live_out
+    self.liveness_analysis();
+
+    self.prepared = true;
+  }
+
   fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str> {
+    self.prepare();
+
     // Create physical fixed intervals
     for config.register_groups.eachi() |group, &count| {
       self.physical.insert(group, ~SmallIntMap::new());
@@ -117,12 +136,7 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
       }
     }
 
-    // Get flat list of blocks
-    self.flatten();
     let list = self.get_block_list();
-
-    // Build live_in/live_out
-    self.liveness_analysis();
 
     // Create live ranges
     match self.build_ranges(list, copy config) {

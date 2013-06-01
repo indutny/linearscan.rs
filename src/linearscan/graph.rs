@@ -18,6 +18,7 @@ pub struct Graph<K> {
   blocks: ~SmallIntMap<~Block<K> >,
   instructions: ~SmallIntMap<~Instruction<K> >,
   gaps: ~SmallIntMap<~GapState>,
+  prepared: bool,
   physical: ~SmallIntMap<~SmallIntMap<IntervalId> >
 }
 
@@ -136,6 +137,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
       blocks: ~SmallIntMap::new(),
       instructions: ~SmallIntMap::new(),
       gaps: ~SmallIntMap::new(),
+      prepared: false,
       physical: ~SmallIntMap::new()
     }
   }
