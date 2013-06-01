@@ -3,37 +3,16 @@ extern mod extra;
 use extra::json::ToJson;
 use std::uint;
 use linearscan::{Allocator, Generator, GeneratorFunctions, DCE,
-                 Config, Graph, InstrId, BlockId};
+                 Graph, InstrId, BlockId};
 use emulator::*;
 
 #[path="../src/linearscan.rs"]
 mod linearscan;
 mod emulator;
 
-fn graph_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
-  let mut g = ~Graph::new::<Kind>();
-
-  body(&mut *g);
-
-  g.eliminate_dead_code();
-
-  g.allocate(Config {
-    register_groups: ~[
-      4, // normal registers
-      4  // double registers
-    ]
-  }).get();
-
-  let mut emu = Emulator::new();
-  let got = emu.run(g);
-  if got != expected {
-    fail!(fmt!("got %? expected %?", got, expected));
-  }
-}
-
 #[test]
 fn realword_example() {
-  do graph_test(Left(21)) |g| {
+  do run_test(Left(21)) |g| {
     let phi = g.phi(Normal);
 
     let cond = g.empty_block();
@@ -86,7 +65,7 @@ fn nested_loops() {
     out: InstrId
   }
 
-  do graph_test(Left(125)) |g| {
+  do run_test(Left(125)) |g| {
     fn create_loop(g: &mut Graph<Kind>,
                    in: InstrId,
                    f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
@@ -169,7 +148,7 @@ fn nested_loops() {
 
 #[test]
 fn double_and_normal() {
-  do graph_test(Right(286.875)) |g| {
+  do run_test(Right(286.875)) |g| {
     do g.block() |b| {
       b.make_root();
 
@@ -199,7 +178,7 @@ fn double_and_normal() {
 
 #[test]
 fn parallel_move_cycles() {
-  do graph_test(Left(1234)) |g| {
+  do run_test(Left(1234)) |g| {
     do g.block() |b| {
       b.make_root();
 

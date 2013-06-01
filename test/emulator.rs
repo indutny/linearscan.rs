@@ -1,4 +1,4 @@
-use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper,
+use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper, Config,
                  DCEKindHelper,
                  UseKind, UseAny, UseRegister, UseFixed,
                  Value, RegisterVal, StackVal, GroupId, BlockId, InstrId};
@@ -151,6 +151,25 @@ impl GeneratorFunctions<Kind> for Emulator {
       temporary: temporary.to_owned(),
       succ: succ.to_owned()
     }));
+  }
+}
+
+pub fn run_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
+  let mut g = ~Graph::new::<Kind>();
+
+  body(&mut *g);
+
+  g.allocate(Config {
+    register_groups: ~[
+      4, // normal registers
+      4  // double registers
+    ]
+  }).get();
+
+  let mut emu = Emulator::new();
+  let got = emu.run(g);
+  if got != expected {
+    fail!(fmt!("got %? expected %?", got, expected));
   }
 }
 
