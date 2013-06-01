@@ -1,8 +1,6 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
-use std::uint;
-use linearscan::graph::{Graph, BlockId, KindHelper, GapState};
-use linearscan::allocator::{Config};
+use linearscan::graph::{Graph, BlockId, KindHelper};
 
 struct MapResult {
   block: BlockId,
@@ -11,7 +9,7 @@ struct MapResult {
 
 pub trait Flatten {
   // Perform flatten itself
-  fn flatten(&mut self, config: Config) -> ~[BlockId];
+  fn flatten(&mut self) -> ~[BlockId];
 }
 
 trait FlattenHelper {
@@ -25,7 +23,7 @@ trait FlattenHelper {
 
   // Assign new ids to blocks and instructions
   fn flatten_reindex_blocks(&mut self, list: &[BlockId]) -> ~[BlockId];
-  fn flatten_reindex_instructions(&mut self, list: &[BlockId], config: Config);
+  fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
 }
 
 impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
@@ -142,7 +140,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     return result;
   }
 
-  fn flatten_reindex_instructions(&mut self, list: &[BlockId], config: Config) {
+  fn flatten_reindex_instructions(&mut self, list: &[BlockId]) {
     self.instr_id = 0;
     let mut queue = ~[];
     for list.each() |block| {
@@ -158,13 +156,6 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
         // And update its id
         instr.id = self.instr_id;
         self.instr_id += 1;
-
-        // Call has it's own gap
-        for uint::range(0, config.register_groups.len()) |group| {
-          if instr.kind.clobbers(group) {
-            self.gaps.insert(instr.id, ~GapState { actions: ~[] });
-          }
-        }
 
         // Construct new block instructions list and insert instruction into
         // new map
@@ -200,7 +191,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
 }
 
 impl<K: KindHelper+Copy> Flatten for Graph<K> {
-  fn flatten(&mut self, config: Config) -> ~[BlockId] {
+  fn flatten(&mut self) -> ~[BlockId] {
     self.flatten_assign_indexes();
 
     let mut queue = ~[self.root.expect("Root block")];
@@ -235,7 +226,7 @@ impl<K: KindHelper+Copy> Flatten for Graph<K> {
     result = self.flatten_reindex_blocks(result);
 
     // Assign flat ids to every instruction
-    self.flatten_reindex_instructions(result, config);
+    self.flatten_reindex_instructions(result);
 
     return result;
   }

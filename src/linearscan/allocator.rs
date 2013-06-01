@@ -111,7 +111,7 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
     }
 
     // Get flat list of blocks
-    let list = self.flatten(copy config);
+    let list = self.flatten();
 
     // Build live_in/live_out
     match self.build_liveranges(list, copy config) {
