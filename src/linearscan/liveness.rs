@@ -15,10 +15,7 @@ trait LivenessHelper {
 
 impl<K: KindHelper+Copy> Liveness for Graph<K> {
   fn liveness_analysis(&mut self) {
-    let mut blocks = ~[];
-    for self.blocks.each() |_, block| {
-      blocks.push(block.id);
-    }
+    let blocks = self.get_block_list();
     self.build_local(blocks);
     self.build_global(blocks);
   }

@@ -9,7 +9,7 @@ struct MapResult {
 
 pub trait Flatten {
   // Perform flatten itself
-  fn flatten(&mut self) -> ~[BlockId];
+  fn flatten(&mut self);
 }
 
 trait FlattenHelper {
@@ -191,11 +191,11 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
 }
 
 impl<K: KindHelper+Copy> Flatten for Graph<K> {
-  fn flatten(&mut self) -> ~[BlockId] {
+  fn flatten(&mut self) {
     self.flatten_assign_indexes();
 
     let mut queue = ~[self.root.expect("Root block")];
-    let mut result = ~[];
+    let mut list = ~[];
     let mut visited = ~BitvSet::new();
 
     // Visit each block and its successors
@@ -205,7 +205,7 @@ impl<K: KindHelper+Copy> Flatten for Graph<K> {
       // Skip visited blocks
       if !visited.insert(cur) { loop; }
 
-      result.push(cur);
+      list.push(cur);
 
       // Visit successors if they've no unvisited incoming forward edges
       let successors = copy self.blocks.get(&cur).successors;
@@ -223,11 +223,9 @@ impl<K: KindHelper+Copy> Flatten for Graph<K> {
     }
 
     // Assign flat ids to every block
-    result = self.flatten_reindex_blocks(result);
+    list = self.flatten_reindex_blocks(list);
 
     // Assign flat ids to every instruction
-    self.flatten_reindex_instructions(result);
-
-    return result;
+    self.flatten_reindex_instructions(list);
   }
 }

@@ -118,7 +118,8 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
     }
 
     // Get flat list of blocks
-    let list = self.flatten();
+    self.flatten();
+    let list = self.get_block_list();
 
     // Build live_in/live_out
     self.liveness_analysis();

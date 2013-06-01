@@ -206,6 +206,15 @@ pub impl<K: KindHelper+Copy> Graph<K> {
     self.blocks.find_mut(id).unwrap()
   }
 
+  /// Return ordered list of blocks
+  fn get_block_list(&self) -> ~[BlockId] {
+    let mut blocks = ~[];
+    for self.blocks.each() |_, block| {
+      blocks.push(block.id);
+    }
+    return blocks;
+  }
+
   /// Mutable instruction getter
   fn get_instr<'r>(&'r mut self, id: &InstrId) -> &'r mut ~Instruction<K> {
     self.instructions.find_mut(id).unwrap()
