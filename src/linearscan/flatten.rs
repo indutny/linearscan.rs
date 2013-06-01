@@ -145,23 +145,6 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     let mut queue = ~[];
     let mut map = ~SmallIntMap::new();
 
-    // Add phis to queue
-    let mut i = 0;
-    while i < self.phis.len() {
-      let mut phi = self.instructions.pop(&self.phis[i]).expect("Phi");
-
-      // Insert mapping
-      map.insert(phi.id, self.instr_id);
-
-      // Update id
-      phi.id = self.instr_id;
-      self.instr_id += 1;
-
-      // Queue phi
-      queue.push(phi);
-      i += 1;
-    }
-
     // Go through blocks and map instructions
     for list.each() |block| {
       let list = copy self.blocks.get(block).instructions;
@@ -201,6 +184,23 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
 
       // Replace block's instruction list
       self.get_block(block).instructions = new_list;
+    }
+
+    // Add phis to queue
+    let mut i = 0;
+    while i < self.phis.len() {
+      let mut phi = self.instructions.pop(&self.phis[i]).expect("Phi");
+
+      // Insert mapping
+      map.insert(phi.id, self.instr_id);
+
+      // Update id
+      phi.id = self.instr_id;
+      self.instr_id += 1;
+
+      // Queue phi
+      queue.push(phi);
+      i += 1;
     }
 
     // Remove all other instructions

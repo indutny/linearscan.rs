@@ -15,7 +15,7 @@ fn graph_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
 
   body(&mut *g);
 
-//  g.eliminate_dead_code();
+  g.eliminate_dead_code();
 
   g.allocate(Config {
     register_groups: ~[

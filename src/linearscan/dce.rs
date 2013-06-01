@@ -38,6 +38,14 @@ impl<K: KindHelper+DCEKindHelper+Copy> DCE<K> for Graph<K> {
     }
 
     // And globally
+    let mut queue = ~[];
+    for self.instructions.each() |id, _| {
+      if !alive.contains(id) { queue.push(*id) }
+    }
+
+    while queue.len() > 0 {
+      self.instructions.pop(&queue.shift());
+    }
   }
 }
 

@@ -531,6 +531,8 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
     let res = Instruction::new_empty(self.graph, ToPhi(group), ~[input]);
     self.graph.get_instr(&res).output = Some(out);
     self.add_existing(res);
+    self.graph.get_instr(&phi).inputs.push(res);
+    assert!(self.graph.instructions.get(&phi).inputs.len() <= 2);
   }
 
   /// end block

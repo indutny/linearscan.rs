@@ -46,6 +46,12 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
 
     // Invoke functions in order of increasing instruction id
     for self.instructions.each() |id, instr| {
+      // Skip phis
+      match instr.kind {
+        Phi(_) => loop,
+        _ => ()
+      };
+
       // Notify about block start
       let block = self.blocks.get(&instr.block);
       if *id == block.start() {
