@@ -121,7 +121,7 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
     let list = self.flatten();
 
     // Build live_in/live_out
-    self.liveness_analysis(list);
+    self.liveness_analysis();
 
     // Create live ranges
     match self.build_ranges(list, copy config) {
