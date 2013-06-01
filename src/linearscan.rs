@@ -3,10 +3,14 @@ pub use linearscan::graph::{Graph, KindHelper,
                             GroupId, BlockId, InstrId,
                             Value, RegisterVal, StackVal};
 pub use linearscan::allocator::{Allocator, Config};
+pub use linearscan::dce::{DCE, DCEKindHelper};
 pub use linearscan::generator::{Generator, GeneratorFunctions};
 
 #[path="linearscan/allocator.rs"]
 mod allocator;
+
+#[path="linearscan/dce.rs"]
+mod dce;
 
 #[path="linearscan/flatten.rs"]
 mod flatten;

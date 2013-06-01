@@ -1,4 +1,5 @@
 use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper,
+                 DCEKindHelper,
                  UseKind, UseAny, UseRegister, UseFixed,
                  Value, RegisterVal, StackVal, GroupId, BlockId, InstrId};
 use extra::smallintmap::SmallIntMap;
@@ -66,6 +67,18 @@ impl KindHelper for Kind {
       &DoubleSum => Some(UseRegister(Double)),
       &ToDouble => Some(UseRegister(Double)),
       _ => Some(UseRegister(Normal))
+    }
+  }
+}
+
+impl DCEKindHelper for Kind {
+  fn has_sideeffects(&self) -> bool {
+    match self {
+      &Return => true,
+      &ReturnDouble => true,
+      &BranchIfBigger => true,
+      &Print => true,
+      _ => false
     }
   }
 }

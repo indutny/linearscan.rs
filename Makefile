@@ -6,6 +6,7 @@ TEST_BINARY ?= ./run-tests
 SRC ?=
 SRC += src/linearscan.rs
 SRC += src/linearscan/allocator.rs
+SRC += src/linearscan/dce.rs
 SRC += src/linearscan/flatten.rs
 SRC += src/linearscan/gap.rs
 SRC += src/linearscan/generator.rs

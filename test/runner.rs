@@ -2,7 +2,7 @@ extern mod extra;
 
 use extra::json::ToJson;
 use std::uint;
-use linearscan::{Allocator, Generator, GeneratorFunctions,
+use linearscan::{Allocator, Generator, GeneratorFunctions, DCE,
                  Config, Graph, InstrId, BlockId};
 use emulator::*;
 
@@ -14,6 +14,8 @@ fn graph_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
   let mut g = ~Graph::new::<Kind>();
 
   body(&mut *g);
+
+  g.eliminate_dead_code();
 
   g.allocate(Config {
     register_groups: ~[
