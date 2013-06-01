@@ -696,12 +696,13 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
         }
 
         // Process inputs
-        for instr.inputs.eachi() |i, input| {
-          if !self.intervals.get(input).covers(instr_id) {
-            self.get_interval(input).add_range(block_from, instr_id);
+        for instr.inputs.eachi() |i, input_instr| {
+          let input = self.get_output(input_instr);
+          if !self.intervals.get(&input).covers(instr_id) {
+            self.get_interval(&input).add_range(block_from, instr_id);
           }
           let kind = instr.kind.use_kind(i);
-          self.get_interval(input).add_use(kind, instr_id);
+          self.get_interval(&input).add_use(kind, instr_id);
         }
       }
     }

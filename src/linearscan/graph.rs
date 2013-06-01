@@ -1,6 +1,6 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
-use std::{vec, uint};
+use std::uint;
 
 pub type BlockId = uint;
 pub type InstrId = uint;
@@ -17,6 +17,7 @@ pub struct Graph<K> {
   intervals: ~SmallIntMap<~Interval>,
   blocks: ~SmallIntMap<~Block<K> >,
   instructions: ~SmallIntMap<~Instruction<K> >,
+  phis: ~[InstrId],
   gaps: ~SmallIntMap<~GapState>,
   prepared: bool,
   physical: ~SmallIntMap<~SmallIntMap<IntervalId> >
@@ -52,7 +53,7 @@ pub struct Instruction<K> {
   block: BlockId,
   kind: InstrKind<K>,
   output: Option<IntervalId>,
-  inputs: ~[IntervalId],
+  inputs: ~[InstrId],
   temporary: ~[IntervalId],
   added: bool
 }
@@ -136,6 +137,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
       intervals: ~SmallIntMap::new(),
       blocks: ~SmallIntMap::new(),
       instructions: ~SmallIntMap::new(),
+      phis: ~[],
       gaps: ~SmallIntMap::new(),
       prepared: false,
       physical: ~SmallIntMap::new()
@@ -167,6 +169,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
     let res = Instruction::new(self, Phi(group), ~[]);
     // Prevent adding phi to block
     self.get_instr(&res).added = true;
+    self.phis.push(res);
     return res;
   }
 
@@ -220,6 +223,11 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   /// Mutable instruction getter
   fn get_instr<'r>(&'r mut self, id: &InstrId) -> &'r mut ~Instruction<K> {
     self.instructions.find_mut(id).unwrap()
+  }
+
+  /// Instruction output getter
+  fn get_output(&self, id: &InstrId) -> IntervalId {
+    self.instructions.get(id).output.expect("Instruction output")
   }
 
   /// Mutable interval getter
@@ -595,13 +603,6 @@ pub impl<K: KindHelper+Copy> Instruction<K> {
                args: ~[InstrId]) -> InstrId {
     let id = graph.instr_id();
 
-    let inputs = do vec::map(args) |input_id| {
-      let output = graph.instructions.get(input_id).output
-                        .expect("Instruction should have output");
-      graph.get_interval(&output);
-      output
-    };
-
     let mut temporary = ~[];
     for kind.temporary().each() |group| {
       temporary.push(Interval::new(graph, *group));
@@ -612,7 +613,7 @@ pub impl<K: KindHelper+Copy> Instruction<K> {
       block: 0,
       kind: kind,
       output: None,
-      inputs: inputs,
+      inputs: copy args,
       temporary: temporary,
       added: false
     };

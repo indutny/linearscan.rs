@@ -35,7 +35,8 @@ impl<K: KindHelper+Copy> LivenessHelper for Graph<K> {
           None => true
         };
 
-        for inputs.each() |&input| {
+        for inputs.each() |input_instr| {
+          let input = self.get_output(input_instr);
           if !self.blocks.get(block).live_kill.contains(&input) {
             self.get_block(block).live_gen.insert(input);
           }

@@ -1,5 +1,6 @@
 use linearscan::graph::{Graph, KindHelper, InstrKind,
                         Phi, ToPhi, Gap, User};
+use extra::bitv::BitvSet;
 
 /// DCE = Dead Code Elimination
 pub trait DCE<K> {
@@ -10,15 +11,34 @@ pub trait DCEKindHelper {
   fn has_sideeffects(&self) -> bool;
 }
 
-trait DCEHelper<K> {
-}
-
 impl<K: KindHelper+DCEKindHelper+Copy> DCE<K> for Graph<K> {
   fn eliminate_dead_code(&mut self) {
-  }
-}
+    // Get list of alive instructions
+    let mut alive = ~BitvSet::new();
+    let mut work_list = ~[];
+    for self.instructions.each() |_, instr| {
+      if instr.kind.has_sideeffects() {
+        work_list.push(instr.id);
+      }
+    }
 
-impl<K: KindHelper+DCEKindHelper+Copy> DCEHelper<K> for Graph<K> {
+    while work_list.len() > 0 {
+      let cur = work_list.shift();
+      if !alive.insert(cur) { loop; }
+
+      // Schedule inputs
+      for self.instructions.get(&cur).inputs.each() |&id| {
+        work_list.push(id);
+      }
+    }
+
+    // Filter out dead instructions in blocks
+    for self.blocks.mutate_values() |_, block| {
+      block.instructions.retain(|id| alive.contains(id));
+    }
+
+    // And globally
+  }
 }
 
 impl<K: DCEKindHelper+Copy> DCEKindHelper for InstrKind<K> {

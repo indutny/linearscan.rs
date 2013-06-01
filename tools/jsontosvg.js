@@ -220,7 +220,8 @@ Converter.prototype.drawScripts = function drawScripts() {
           if (instr.output !== null) {
             h({ r: instr.output }, 'output', true);
           }
-          instr.inputs.forEach(function(input, i) {
+          instr.inputs.forEach(function(input_instr, i) {
+            var input = instructions[input_instr].output;
             h({ r: input }, 'input', true);
           });
 
@@ -328,7 +329,8 @@ Converter.prototype.drawInstructions = function drawInstructions() {
 
     if (instr.inputs.length > 0) {
       res += '(';
-      instr.inputs.forEach(function(input, i) {
+      instr.inputs.forEach(function(input_instr, i) {
+        var input = self.input.instructions[input_instr].output;
         res += interval_to_str(input);
         if (i !== instr.inputs.length - 1) res += ', ';
       });

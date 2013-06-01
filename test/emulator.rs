@@ -230,7 +230,7 @@ pub impl Emulator {
 
   fn exec_generic(&mut self, instr: &GenericInstruction) {
     let out = instr.output;
-    let inputs = do instr.inputs.map() |i| { self.get(*i) };
+    let inputs = instr.inputs.map(|i| self.get(*i));
     let tmp = copy instr.temporary;
 
     match instr.kind {

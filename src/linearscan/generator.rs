@@ -73,13 +73,13 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
           None => None
         };
         let inputs = do instr.inputs.map() |in| {
-          self.get_value(in, instr.id).expect("input")
+          self.get_value(&self.get_output(in), instr.id).expect("input")
         };
         let temporary = do instr.temporary.map() |tmp| {
           self.get_value(tmp, instr.id).expect("temporary")
         };
         match instr.kind {
-          Phi(_) => fail!("Phi instruction can't be present in graph"),
+          Phi(_) => (),
           ToPhi(_) => {
             assert!(inputs.len() == 1);
             let out = output.expect("ToPhi output");
