@@ -59,6 +59,13 @@ trait AllocatorHelper {
   // Add movements on block edges
   fn resolve_data_flow(&mut self, list: &[BlockId]);
 
+  // Build live ranges for each interval
+  fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
+      -> Result<(), ~str>;
+
+  // Split intervals with fixed uses
+  fn split_fixed(&mut self);
+
   //
   // Helpers
   //
@@ -114,7 +121,10 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
     let list = self.flatten();
 
     // Build live_in/live_out
-    match self.build_liveranges(list, copy config) {
+    self.liveness_analysis(list);
+
+    // Create live ranges
+    match self.build_ranges(list, copy config) {
       Ok(_) => {
         let mut results = ~[];
         // In each register group
@@ -603,6 +613,113 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
             self.get_gap(&gap_pos).add_move(&from, &to);
           }
         }
+      }
+    }
+  }
+
+  fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
+      -> Result<(), ~str> {
+    let physical = copy self.physical;
+    for blocks.each_reverse() |block_id| {
+      let instructions = copy self.blocks.get(block_id).instructions;
+      let live_out = copy self.blocks.get(block_id).live_out;
+      let block_from = self.blocks.get(block_id).start();
+      let block_to = self.blocks.get(block_id).end();
+
+      // Assume that each live_out interval lives for the whole time of block
+      // NOTE: we'll shorten it later if definition of this interval appears to
+      // be in this block
+      for live_out.each() |int_id| {
+        self.get_interval(int_id).add_range(block_from, block_to);
+      }
+
+      for instructions.each_reverse() |&instr_id| {
+        let instr = copy *self.instructions.get(&instr_id);
+
+        // Call instructions should swap out all used registers into stack slots
+        for config.register_groups.eachi() |group, &count| {
+          if instr.kind.clobbers(group) {
+            for uint::range(0, count) |reg| {
+              self.get_interval(physical.get(&group).get(&reg))
+                  .add_range(instr_id, instr_id + 1);
+            }
+          }
+        }
+
+        // Process output
+        match instr.output {
+          Some(output) => {
+            // Call instructions are defining their value after the call
+            let group = self.intervals.get(&output).value.group();
+            let pos = if instr.kind.clobbers(group) {
+              instr_id + 1
+            } else {
+              instr_id
+            };
+
+            if self.get_interval(&output).ranges.len() != 0  {
+              // Shorten range if output outlives block, or is used anywhere
+              self.get_interval(&output).first_range().start = pos;
+            } else {
+              // Add short range otherwise
+              self.get_interval(&output).add_range(pos, pos + 1);
+            }
+            let out_kind = instr.kind.result_kind().unwrap();
+            self.get_interval(&output).add_use(out_kind, pos);
+          },
+          None => ()
+        }
+
+        // Process temporary
+        for instr.temporary.each() |tmp| {
+          let group = self.intervals.get(tmp).value.group();
+          if instr.kind.clobbers(group) {
+            return Err(~"Call instruction can't have temporary registers");
+          }
+          self.get_interval(tmp).add_range(instr_id, instr_id + 1);
+          self.get_interval(tmp).add_use(UseRegister(group), instr_id);
+        }
+
+        // Process inputs
+        for instr.inputs.eachi() |i, input| {
+          if !self.intervals.get(input).covers(instr_id) {
+            self.get_interval(input).add_range(block_from, instr_id);
+          }
+          let kind = instr.kind.use_kind(i);
+          self.get_interval(input).add_use(kind, instr_id);
+        }
+      }
+    }
+
+    // Now split all intervals with fixed uses
+    self.split_fixed();
+
+    return Ok(());
+  }
+
+  fn split_fixed(&mut self) {
+    let mut list = ~[];
+    for self.intervals.each() |_, interval| {
+      if interval.uses.any(|u| { u.kind.is_fixed() }) {
+        list.push(interval.id);
+      }
+    }
+    for list.each() |id| {
+      let cur = *id;
+
+      let uses = do (copy self.intervals.get(id).uses).filtered |u| {
+        u.kind.is_fixed()
+      };
+
+      let mut i = 0;
+      while i < uses.len() - 1 {
+        // Split between each pair of uses
+        let split_pos = self.optimal_split_pos(uses[i].kind.group(),
+                                               uses[i].pos,
+                                               uses[i + 1].pos);
+        self.split_at(&cur, split_pos);
+
+        i += 1;
       }
     }
   }
