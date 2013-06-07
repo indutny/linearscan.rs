@@ -126,9 +126,9 @@ pub trait KindHelper {
   fn result_kind(&self) -> Option<UseKind>;
 }
 
-pub impl<K: KindHelper+Copy> Graph<K> {
+impl<K: KindHelper+Copy> Graph<K> {
   /// Create new graph
-  fn new() -> Graph<K> {
+  pub fn new() -> Graph<K> {
     Graph {
       root: None,
       block_id: 0,
@@ -145,7 +145,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Create empty block
-  fn empty_block(&mut self) -> BlockId {
+  pub fn empty_block(&mut self) -> BlockId {
     let block = ~Block::new(self);
     let id = block.id;
     self.blocks.insert(id, block);
@@ -153,7 +153,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Create empty block and initialize it in the block
-  fn block(&mut self, body: &fn(b: &mut BlockBuilder<K>)) -> BlockId {
+  pub fn block(&mut self, body: &fn(b: &mut BlockBuilder<K>)) -> BlockId {
     let block = ~Block::new(self);
     let id = block.id;
     self.blocks.insert(id, block);
@@ -165,7 +165,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Create phi value
-  fn phi(&mut self, group: GroupId) -> InstrId {
+  pub fn phi(&mut self, group: GroupId) -> InstrId {
     let res = Instruction::new(self, Phi(group), ~[]);
     // Prevent adding phi to block
     self.get_instr(&res).added = true;
@@ -174,7 +174,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Perform operations on block
-  fn with_block(&mut self, id: BlockId, body: &fn(b: &mut BlockBuilder<K>)) {
+  pub fn with_block(&mut self,
+                    id: BlockId,
+                    body: &fn(b: &mut BlockBuilder<K>)) {
     let mut b = BlockBuilder {
       graph: self,
       block: id
@@ -183,17 +185,17 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Create new instruction outside the block
-  fn new_instr(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
+  pub fn new_instr(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     return Instruction::new(self, User(kind), args);
   }
 
   /// Set graph's root block
-  fn set_root(&mut self, id: BlockId) {
+  pub fn set_root(&mut self, id: BlockId) {
     self.root = Some(id);
   }
 
   /// Create gap (internal)
-  fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
+  pub fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
     let id = self.instr_id();
     return ~Instruction {
       id: id,
@@ -207,12 +209,12 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Mutable block getter
-  fn get_block<'r>(&'r mut self, id: &BlockId) -> &'r mut ~Block<K> {
+  pub fn get_block<'r>(&'r mut self, id: &BlockId) -> &'r mut ~Block<K> {
     self.blocks.find_mut(id).unwrap()
   }
 
   /// Return ordered list of blocks
-  fn get_block_list(&self) -> ~[BlockId] {
+  pub fn get_block_list(&self) -> ~[BlockId] {
     let mut blocks = ~[];
     for self.blocks.each() |_, block| {
       blocks.push(block.id);
@@ -221,22 +223,22 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Mutable instruction getter
-  fn get_instr<'r>(&'r mut self, id: &InstrId) -> &'r mut ~Instruction<K> {
+  pub fn get_instr<'r>(&'r mut self, id: &InstrId) -> &'r mut ~Instruction<K> {
     self.instructions.find_mut(id).unwrap()
   }
 
   /// Instruction output getter
-  fn get_output(&self, id: &InstrId) -> IntervalId {
+  pub fn get_output(&self, id: &InstrId) -> IntervalId {
     self.instructions.get(id).output.expect("Instruction output")
   }
 
   /// Mutable interval getter
-  fn get_interval<'r>(&'r mut self, id: &IntervalId) -> &'r mut ~Interval {
+  pub fn get_interval<'r>(&'r mut self, id: &IntervalId) -> &'r mut ~Interval {
     self.intervals.find_mut(id).unwrap()
   }
 
   /// Mutable gap state getter
-  fn get_gap<'r>(&'r mut self, id: &InstrId) -> &'r mut ~GapState {
+  pub fn get_gap<'r>(&'r mut self, id: &InstrId) -> &'r mut ~GapState {
     if !self.gaps.contains_key(id) {
       self.gaps.insert(*id, ~GapState { actions: ~[] });
     }
@@ -244,9 +246,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Find next intersection of two intervals
-  fn get_intersection(&self,
-                      a: &IntervalId,
-                      b: &IntervalId) -> Option<InstrId> {
+  pub fn get_intersection(&self,
+                          a: &IntervalId,
+                          b: &IntervalId) -> Option<InstrId> {
     let int_a = self.intervals.get(a);
     let int_b = self.intervals.get(b);
 
@@ -265,16 +267,16 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Return `true` if `pos` is either some block's start or end
-  fn block_boundary(&self, pos: InstrId) -> bool {
+  pub fn block_boundary(&self, pos: InstrId) -> bool {
     let block = self.blocks.get(&self.instructions.get(&pos).block);
     return block.start() == pos || block.end() == pos;
   }
 
   /// Find optimal split position between two instructions
-  fn optimal_split_pos(&self,
-                       group: GroupId,
-                       start: InstrId,
-                       end: InstrId) -> InstrId {
+  pub fn optimal_split_pos(&self,
+                           group: GroupId,
+                           start: InstrId,
+                           end: InstrId) -> InstrId {
     // Fast and unfortunate case
     if start == end {
       return end;
@@ -305,7 +307,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
 
   /// Split interval or one of it's children at specified position, return
   /// id of split child.
-  fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
+  pub fn split_at(&mut self, id: &IntervalId, pos: InstrId) -> IntervalId {
     // We should always make progress
     assert!(self.intervals.get(id).start() < pos);
 
@@ -397,9 +399,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Helper function
-  fn iterate_children(&self,
-                      id: &IntervalId,
-                      f: &fn(&~Interval) -> bool) -> bool {
+  pub fn iterate_children(&self,
+                          id: &IntervalId,
+                          f: &fn(&~Interval) -> bool) -> bool {
     let p = self.intervals.get(id);
     if !f(p) {
       return false;
@@ -414,7 +416,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Find child interval, that covers specified position
-  fn child_at(&self, parent: &IntervalId, pos: InstrId) -> Option<IntervalId> {
+  pub fn child_at(&self,
+                  parent: &IntervalId,
+                  pos: InstrId) -> Option<IntervalId> {
     for self.iterate_children(parent) |interval| {
       if interval.start() <= pos && pos < interval.end() {
         return Some(interval.id);
@@ -425,9 +429,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
     None
   }
 
-  fn child_with_use_at(&self,
-                       parent: &IntervalId,
-                       pos: InstrId) -> Option<IntervalId> {
+  pub fn child_with_use_at(&self,
+                           parent: &IntervalId,
+                           pos: InstrId) -> Option<IntervalId> {
     for self.iterate_children(parent) |interval| {
       if interval.start() <= pos && pos <= interval.end() &&
          interval.uses.any(|u| { u.pos == pos }) {
@@ -439,7 +443,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
     None
   }
 
-  fn get_value(&self, i: &IntervalId, pos: InstrId) -> Option<Value> {
+  pub fn get_value(&self, i: &IntervalId, pos: InstrId) -> Option<Value> {
     let child = self.child_with_use_at(i, pos);
     match child {
       Some(child) => Some(self.intervals.get(&child).value),
@@ -448,7 +452,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 
   /// Return true if instruction at specified position is Gap
-  fn is_gap(&self, pos: &InstrId) -> bool {
+  pub fn is_gap(&self, pos: &InstrId) -> bool {
     match self.instructions.get(pos).kind {
       Gap => true,
       _ => false
@@ -457,7 +461,7 @@ pub impl<K: KindHelper+Copy> Graph<K> {
 
   /// Return true if instruction at specified position contains
   /// register-clobbering call.
-  fn clobbers(&self, group: GroupId, pos: &InstrId) -> bool {
+  pub fn clobbers(&self, group: GroupId, pos: &InstrId) -> bool {
     return self.instructions.get(pos).kind.clobbers(group);
   }
 
@@ -486,9 +490,9 @@ pub impl<K: KindHelper+Copy> Graph<K> {
   }
 }
 
-pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
+impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   /// add instruction to block
-  fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
+  pub fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = self.graph.new_instr(kind, args);
 
     self.add_existing(instr_id);
@@ -497,7 +501,7 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   }
 
   /// add existing instruction to block
-  fn add_existing(&mut self, instr_id: InstrId) {
+  pub fn add_existing(&mut self, instr_id: InstrId) {
     assert!(!self.graph.get_instr(&instr_id).added);
     self.graph.get_instr(&instr_id).added = true;
     self.graph.get_instr(&instr_id).block = self.block;
@@ -508,13 +512,13 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   }
 
   /// add arg to existing instruction in block
-  fn add_arg(&mut self, id: InstrId, arg: InstrId) {
+  pub fn add_arg(&mut self, id: InstrId, arg: InstrId) {
     assert!(self.graph.instructions.get(&id).block == self.block);
     self.graph.get_instr(&id).inputs.push(arg);
   }
 
   /// add phi movement to block
-  fn to_phi(&mut self, input: InstrId, phi: InstrId) {
+  pub fn to_phi(&mut self, input: InstrId, phi: InstrId) {
     let group = match self.graph.get_instr(&phi).kind {
       Phi(group) => group,
       _ => fail!("Expected Phi argument")
@@ -536,7 +540,7 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   }
 
   /// end block
-  fn end(&mut self) {
+  pub fn end(&mut self) {
     let block = self.graph.get_block(&self.block);
     assert!(!block.ended);
     assert!(block.instructions.len() > 0);
@@ -544,14 +548,14 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   }
 
   /// add `target_id` to block's successors
-  fn goto(&mut self, target_id: BlockId) {
+  pub fn goto(&mut self, target_id: BlockId) {
     self.graph.get_block(&self.block).add_successor(target_id);
     self.graph.get_block(&target_id).add_predecessor(self.block);
     self.end();
   }
 
   /// add `left` and `right` to block's successors
-  fn branch(&mut self, left: BlockId, right: BlockId) {
+  pub fn branch(&mut self, left: BlockId, right: BlockId) {
     self.graph.get_block(&self.block).add_successor(left)
                                      .add_successor(right);
     self.graph.get_block(&left).add_predecessor(self.block);
@@ -560,12 +564,12 @@ pub impl<'self, K: KindHelper+Copy> BlockBuilder<'self, K> {
   }
 
   /// mark block as root
-  fn make_root(&mut self) {
+  pub fn make_root(&mut self) {
     self.graph.set_root(self.block);
   }
 }
 
-pub impl<K: KindHelper+Copy> Block<K> {
+impl<K: KindHelper+Copy> Block<K> {
   /// Create new empty block
   fn new(graph: &mut Graph<K>) -> Block<K> {
     Block {
@@ -598,7 +602,7 @@ pub impl<K: KindHelper+Copy> Block<K> {
   }
 }
 
-pub impl<K: KindHelper+Copy> Instruction<K> {
+impl<K: KindHelper+Copy> Instruction<K> {
   /// Create instruction without output interval
   fn new_empty(graph: &mut Graph<K>,
                kind: InstrKind<K>,
@@ -639,10 +643,10 @@ pub impl<K: KindHelper+Copy> Instruction<K> {
   }
 }
 
-pub impl Interval {
+impl Interval {
   /// Create new virtual interval
-  fn new<K: KindHelper+Copy>(graph: &mut Graph<K>,
-                             group: GroupId) -> IntervalId {
+  pub fn new<K: KindHelper+Copy>(graph: &mut Graph<K>,
+                                 group: GroupId) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: VirtualVal(group),
@@ -660,7 +664,7 @@ pub impl Interval {
 
   /// Add range to interval's live range list.
   /// NOTE: Ranges are ordered by start position
-  fn add_range(&mut self, start: InstrId, end: InstrId) {
+  pub fn add_range(&mut self, start: InstrId, end: InstrId) {
     assert!(self.ranges.len() == 0 || self.ranges.head().start >= end);
 
     // Extend last range
@@ -673,25 +677,25 @@ pub impl Interval {
   }
 
   /// Return mutable first range
-  fn first_range<'r>(&'r mut self) -> &'r mut LiveRange {
+  pub fn first_range<'r>(&'r mut self) -> &'r mut LiveRange {
     assert!(self.ranges.len() != 0);
     return &mut self.ranges[0];
   }
 
   /// Return interval's start position
-  fn start(&self) -> InstrId {
+  pub fn start(&self) -> InstrId {
     assert!(self.ranges.len() != 0);
     return self.ranges.head().start;
   }
 
   /// Return interval's end position
-  fn end(&self) -> InstrId {
+  pub fn end(&self) -> InstrId {
     assert!(self.ranges.len() != 0);
     return self.ranges.last().end;
   }
 
   /// Return true if one of the ranges contains `pos`
-  fn covers(&self, pos: InstrId) -> bool {
+  pub fn covers(&self, pos: InstrId) -> bool {
     return do self.ranges.any() |range| {
       range.covers(pos)
     };
@@ -699,7 +703,7 @@ pub impl Interval {
 
   /// Add use to the interval's use list.
   /// NOTE: uses are ordered by increasing `pos`
-  fn add_use(&mut self, kind: UseKind, pos: InstrId) {
+  pub fn add_use(&mut self, kind: UseKind, pos: InstrId) {
     assert!(self.uses.len() == 0 ||
             self.uses[0].pos > pos ||
             self.uses[0].kind.group() == kind.group());
@@ -707,7 +711,7 @@ pub impl Interval {
   }
 
   /// Return next UseFixed(...) after `after` position.
-  fn next_fixed_use(&self, after: InstrId) -> Option<Use> {
+  pub fn next_fixed_use(&self, after: InstrId) -> Option<Use> {
     for self.uses.each() |u| {
       match u.kind {
         UseFixed(_, _) if u.pos >= after => { return Some(*u); },
@@ -718,7 +722,7 @@ pub impl Interval {
   }
 
   /// Return next UseFixed(...) or UseRegister after `after` position.
-  fn next_use(&self, after: InstrId) -> Option<Use> {
+  pub fn next_use(&self, after: InstrId) -> Option<Use> {
     for self.uses.each() |u| {
       if u.pos >= after && !u.kind.is_any() {
         return Some(*u);
@@ -728,7 +732,7 @@ pub impl Interval {
   }
 
   /// Return last UseFixed(...) or UseRegister before `before` position
-  fn last_use(&self, before: InstrId) -> Option<Use> {
+  pub fn last_use(&self, before: InstrId) -> Option<Use> {
     for self.uses.each_reverse() |u| {
       if u.pos <= before && !u.kind.is_any() {
         return Some(*u);
@@ -740,7 +744,7 @@ pub impl Interval {
 
 impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
   /// Return true if instruction is clobbering registers
-  fn clobbers(&self, group: GroupId) -> bool {
+  pub fn clobbers(&self, group: GroupId) -> bool {
     match self {
       &User(ref k) => k.clobbers(group),
       &Gap => false,
@@ -750,7 +754,7 @@ impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
   }
 
   /// Return count of instruction's temporary operands
-  fn temporary(&self) -> ~[GroupId] {
+  pub fn temporary(&self) -> ~[GroupId] {
     match self {
       &User(ref k) => k.temporary(),
       &Gap => ~[],
@@ -760,7 +764,7 @@ impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
   }
 
   /// Return use kind of instruction's `i`th input
-  fn use_kind(&self, i: uint) -> UseKind {
+  pub fn use_kind(&self, i: uint) -> UseKind {
     match self {
       &User(ref k) => k.use_kind(i),
       &Gap => UseAny(0), // note: group is not important for gap
@@ -770,7 +774,7 @@ impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
   }
 
   /// Return result kind of instruction or None, if instruction has no result
-  fn result_kind(&self) -> Option<UseKind> {
+  pub fn result_kind(&self) -> Option<UseKind> {
     match self {
       &User(ref k) => k.result_kind(),
       &Gap => None,
@@ -782,12 +786,12 @@ impl<K: KindHelper+Copy> KindHelper for InstrKind<K> {
 
 impl LiveRange {
   /// Return true if range contains position
-  fn covers(&self, pos: InstrId) -> bool {
+  pub fn covers(&self, pos: InstrId) -> bool {
     return self.start <= pos && pos < self.end;
   }
 
   /// Return first intersection position of two ranges
-  fn get_intersection(&self, other: &LiveRange) -> Option<InstrId> {
+  pub fn get_intersection(&self, other: &LiveRange) -> Option<InstrId> {
     if self.covers(other.start) {
       return Some(other.start);
     } else if other.start < self.start && self.start < other.end {
@@ -798,14 +802,14 @@ impl LiveRange {
 }
 
 impl Value {
-  fn is_virtual(&self) -> bool {
+  pub fn is_virtual(&self) -> bool {
     match self {
       &VirtualVal(_) => true,
       _ => false
     }
   }
 
-  fn group(&self) -> GroupId {
+  pub fn group(&self) -> GroupId {
     match self {
       &VirtualVal(g) => g,
       &RegisterVal(g, _) => g,
@@ -815,21 +819,21 @@ impl Value {
 }
 
 impl UseKind {
-  fn is_fixed(&self) -> bool {
+  pub fn is_fixed(&self) -> bool {
     match self {
       &UseFixed(_, _) => true,
       _ => false
     }
   }
 
-  fn is_any(&self) -> bool {
+  pub fn is_any(&self) -> bool {
     match self {
       &UseAny(_) => true,
       _ => false
     }
   }
 
-  fn group(&self) -> GroupId {
+  pub fn group(&self) -> GroupId {
     match self {
       &UseRegister(g) => g,
       &UseAny(g) => g,
@@ -838,19 +842,19 @@ impl UseKind {
   }
 }
 
-pub impl GapState {
-  fn add_move(&mut self, from: &InstrId, to: &InstrId) {
+impl GapState {
+  pub fn add_move(&mut self, from: &InstrId, to: &InstrId) {
     self.actions.push(GapAction { kind: Move, from: *from, to: *to });
   }
 }
 
-pub impl<K: KindHelper+Copy> Block<K> {
-  fn start(&self) -> InstrId {
+impl<K: KindHelper+Copy> Block<K> {
+  pub fn start(&self) -> InstrId {
     assert!(self.instructions.len() != 0);
     return *self.instructions.head();
   }
 
-  fn end(&self) -> InstrId {
+  pub fn end(&self) -> InstrId {
     assert!(self.instructions.len() != 0);
     return *self.instructions.last() + 1;
   }

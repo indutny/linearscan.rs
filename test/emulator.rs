@@ -173,7 +173,7 @@ pub fn run_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
   }
 }
 
-pub impl Emulator {
+impl Emulator {
   fn new() -> Emulator {
     Emulator {
       ip: 0,
