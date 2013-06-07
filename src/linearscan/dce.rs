@@ -24,17 +24,17 @@ impl<K: KindHelper+DCEKindHelper+Copy> DCE<K> for Graph<K> {
 
     while work_list.len() > 0 {
       let cur = work_list.shift();
-      if !alive.insert(cur) { loop; }
+      if !alive.insert(cur.to_uint()) { loop; }
 
       // Schedule inputs
-      for self.instructions.get(&cur).inputs.each() |&id| {
+      for self.get_instr(&cur).inputs.each() |&id| {
         work_list.push(id);
       }
     }
 
     // Filter out dead instructions in blocks
     for self.blocks.mutate_values() |_, block| {
-      block.instructions.retain(|id| alive.contains(id));
+      block.instructions.retain(|id| alive.contains(&id.to_uint()));
     }
 
     // And globally

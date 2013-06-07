@@ -10,22 +10,22 @@ use linearscan::liveness::Liveness;
 use linearscan::gap::GapResolver;
 
 pub struct Config {
-  register_groups: ~[RegisterId]
+  register_groups: ~[uint]
 }
 
 pub struct AllocatorResult {
-  spill_count: ~[StackId]
+  spill_count: ~[uint]
 }
 
 struct GroupResult {
-  spill_count: StackId
+  spill_count: uint
 }
 
 struct AllocatorState {
   config: Config,
   group: GroupId,
-  register_count: RegisterId,
-  spill_count: StackId,
+  register_count: uint,
+  spill_count: uint,
   spills: ~[Value],
   unhandled: ~[IntervalId],
   active: ~[IntervalId],
@@ -129,9 +129,10 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
     for config.register_groups.eachi() |group, &count| {
       self.physical.insert(group, ~SmallIntMap::new());
       for uint::range(0, count) |reg| {
-        let interval = Interval::new(self, 0);
-        self.get_interval(&interval).value = RegisterVal(group, reg);
-        self.get_interval(&interval).fixed = true;
+        let interval = Interval::new(self, GroupId(group));
+        self.get_mut_interval(&interval).value = RegisterVal(GroupId(group),
+                                                             RegisterId(reg));
+        self.get_mut_interval(&interval).fixed = true;
         self.physical.find_mut(&group).unwrap().insert(reg, interval);
       }
     }
@@ -145,7 +146,7 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
         // In each register group
         for config.register_groups.eachi() |group, _| {
           // Walk intervals!
-          match self.walk_intervals(group, copy config) {
+          match self.walk_intervals(GroupId(group), copy config) {
             Ok(res) => {
               results.push(res);
             },
@@ -179,7 +180,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                     group: GroupId,
                     config: Config) -> Result<GroupResult, ~str> {
     // Initialize allocator state
-    let reg_count = config.register_groups[group];
+    let reg_count = config.register_groups[group.to_uint()];
     let mut state = ~AllocatorState {
       config: config,
       group: group,
@@ -240,7 +241,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       }
 
       // Skip non-virtual intervals
-      if self.intervals.get(&current).value.is_virtual() {
+      if self.get_interval(&current).value.is_virtual() {
         // Allocate free register
         if !self.allocate_free_reg(current, state) {
           // Or spill some active register
@@ -254,7 +255,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       }
 
       // Push register interval to active
-      match self.intervals.get(&current).value {
+      match self.get_interval(&current).value {
         RegisterVal(_, _) => state.active.push(current),
         _ => ()
       }
@@ -271,26 +272,26 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
     // All active intervals use registers
     for self.each_active(state) |_, reg| {
-      free_pos[reg] = 0;
+      free_pos[reg.to_uint()] = 0;
     }
 
     // All inactive registers will eventually use registers
     for self.each_intersecting(current, state) |_, reg, pos| {
-      if free_pos[reg] > pos {
-        free_pos[reg] = pos;
+      if free_pos[reg.to_uint()] > pos.to_uint() {
+        free_pos[reg.to_uint()] = pos.to_uint();
       }
     }
 
     // Choose register with maximum free_pos
     let mut reg = 0;
-    let mut max_pos = 0;
-    match self.intervals.get(&current).next_fixed_use(0) {
+    let mut max_pos = InstrId(0);
+    match self.get_interval(&current).next_fixed_use(InstrId(0)) {
       // Intervals with fixed use should have specific register
       Some(u) => {
         match u.kind {
           UseFixed(_, r) => {
-            reg = r;
-            max_pos = free_pos[reg];
+            reg = r.to_uint();
+            max_pos = InstrId(free_pos[reg]);
           },
           _ => fail!("Unexpected use kind")
         }
@@ -301,14 +302,15 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
         // Prefer hinted register
         match hint {
           Some(hint) => for free_pos.eachi() |i, &pos| {
-            if pos > max_pos || hint == i && pos == max_pos {
-              max_pos = pos;
+            if pos > max_pos.to_uint() ||
+               hint.to_uint() == i && pos == max_pos.to_uint() {
+              max_pos = InstrId(pos);
               reg = i;
             }
           },
           None => for free_pos.eachi() |i, &pos| {
-            if pos > max_pos {
-              max_pos = pos;
+            if pos > max_pos.to_uint() {
+              max_pos = InstrId(pos);
               reg = i;
             }
           }
@@ -316,16 +318,16 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       }
     }
 
-    if max_pos == 0 {
+    if max_pos.to_uint() == 0 {
       // All registers are blocked - failure
       return false;
     }
 
-    let start = self.intervals.get(&current).start();
-    let end = self.intervals.get(&current).end();
+    let start = self.get_interval(&current).start();
+    let end = self.get_interval(&current).end();
     if max_pos >= end {
       // Register is available for whole current's lifetime
-    } else if start + 1 >= max_pos {
+    } else if start.next() >= max_pos {
       // Allocation is impossible
       return false;
     } else {
@@ -333,11 +335,11 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       assert!(max_pos < end);
 
       let mut split_pos = self.optimal_split_pos(state.group, start, max_pos);
-      if split_pos == max_pos - 1 && self.clobbers(state.group, &max_pos) {
+      if split_pos == max_pos.prev() && self.clobbers(state.group, &max_pos) {
         // Splitting right before `call` instruction is pointless,
         // unless we have a register use at that instruction,
         // try spilling current instead.
-        match self.intervals.get(&current).next_use(max_pos) {
+        match self.get_interval(&current).next_use(max_pos) {
           Some(u) if u.pos == max_pos => {
             split_pos = max_pos;
           },
@@ -349,16 +351,17 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       let child = self.split(current, At(split_pos), state);
 
       // Fast case, spill child if there're no register uses after split
-      match self.intervals.get(&child).next_use(0) {
+      match self.get_interval(&child).next_use(InstrId(0)) {
         None => {
-          self.get_interval(&child).value = state.get_spill();
+          self.get_mut_interval(&child).value = state.get_spill();
         },
         _ => ()
       }
     }
 
     // Give current a register
-    self.get_interval(&current).value = RegisterVal(state.group, reg);
+    self.get_mut_interval(&current).value = RegisterVal(state.group,
+                                                        RegisterId(reg));
 
     return true;
   }
@@ -374,22 +377,24 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
     // Populate use_pos from every non-fixed interval
     for self.each_active(state) |id, reg| {
-      let interval = self.intervals.get(id);
+      let interval = self.get_interval(id);
       if !interval.fixed {
+        let int_reg = reg.to_uint();
         match interval.next_use(start) {
-          Some(u) => if use_pos[reg] > u.pos {
-            use_pos[reg] = u.pos;
+          Some(u) => if use_pos[int_reg] > u.pos.to_uint() {
+            use_pos[int_reg] = u.pos.to_uint();
           },
           None => ()
         }
       }
     }
     for self.each_intersecting(current, state) |id, reg, _| {
-      let interval = self.intervals.get(id);
+      let interval = self.get_interval(id);
       if !interval.fixed {
+        let int_reg = reg.to_uint();
         match interval.next_use(start) {
-          Some(u) => if use_pos[reg] > u.pos {
-            use_pos[reg] = u.pos;
+          Some(u) => if use_pos[int_reg] > u.pos.to_uint() {
+            use_pos[int_reg] = u.pos.to_uint();
           },
           None => ()
         }
@@ -398,16 +403,19 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
     // Populate block_pos from every fixed interval
     for self.each_active(state) |id, reg| {
-      if self.intervals.get(id).fixed {
-        block_pos[reg] = 0;
-        use_pos[reg] = 0;
+      if self.get_interval(id).fixed {
+        let int_reg = reg.to_uint();
+        block_pos[int_reg] = 0;
+        use_pos[int_reg] = 0;
       }
     }
     for self.each_intersecting(current, state) |id, reg, pos| {
-      if self.intervals.get(id).fixed {
-        block_pos[reg] = pos;
-        if use_pos[reg] > pos {
-          use_pos[reg] = pos;
+      if self.get_interval(id).fixed {
+        let int_reg = reg.to_uint();
+        let int_pos = pos.to_uint();
+        block_pos[int_reg] = int_pos;
+        if use_pos[int_reg] > int_pos {
+          use_pos[int_reg] = int_pos;
         }
       }
     }
@@ -415,12 +423,12 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
     // Find register with the farest use
     let mut reg = 0;
     let mut max_pos = 0;
-    match self.intervals.get(&current).next_fixed_use(0) {
+    match self.get_interval(&current).next_fixed_use(InstrId(0)) {
       // Intervals with fixed use should have specific register
       Some(u) => {
         match u.kind {
           UseFixed(_, r) => {
-            reg = r;
+            reg = r.to_uint();
             max_pos = use_pos[reg];
           },
           _ => fail!("Unexpected use kind")
@@ -432,7 +440,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
         // Prefer hinted register
         match hint {
           Some(hint) => for use_pos.eachi() |i, &pos| {
-            if pos > max_pos || hint == i && pos == max_pos {
+            if pos > max_pos || hint.to_uint() == i && pos == max_pos {
               max_pos = pos;
               reg = i;
             }
@@ -447,27 +455,28 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       }
     }
 
-    let first_use = self.get_interval(&current).next_use(0);
+    let first_use = self.get_interval(&current).next_use(InstrId(0));
     match first_use {
       Some(u) => {
-        if max_pos < u.pos {
+        if max_pos < u.pos.to_uint() {
           if u.pos == start {
             return Err(~"Incorrect input, allocation impossible");
           }
 
           // Spill current itself
-          self.get_interval(&current).value = state.get_spill();
+          self.get_mut_interval(&current).value = state.get_spill();
 
           // And split before first register use
           self.split(current, Between(start, u.pos), state);
         } else {
           // Assign register to current
-          self.get_interval(&current).value = RegisterVal(state.group, reg);
+          self.get_mut_interval(&current).value = RegisterVal(state.group,
+                                                              RegisterId(reg));
 
           // If blocked somewhere before end by fixed interval
-          if block_pos[reg] <= self.get_interval(&current).end() {
+          if block_pos[reg] <= self.get_interval(&current).end().to_uint() {
             // Split before this position
-            self.split(current, Between(start, block_pos[reg]), state);
+            self.split(current, Between(start, InstrId(block_pos[reg])), state);
           }
 
           // Split and spill, active and intersecting inactive
@@ -476,7 +485,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       },
       None => {
         // Spill current, it has no uses
-        self.get_interval(&current).value = state.get_spill();
+        self.get_mut_interval(&current).value = state.get_spill();
       }
     }
     return Ok(());
@@ -486,7 +495,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                      state: &'r AllocatorState,
                      f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool {
     for state.active.each() |id| {
-      match self.intervals.get(id).value {
+      match self.get_interval(id).value {
         RegisterVal(_, reg) => if !f(id, reg) { break },
         _ => fail!("Expected register in active")
       };
@@ -502,7 +511,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                                   pos: InstrId) -> bool) -> bool {
     for state.inactive.each() |id| {
       match self.get_intersection(id, &current) {
-        Some(pos) => match self.intervals.get(id).value {
+        Some(pos) => match self.get_interval(id).value {
           RegisterVal(_, reg) => if !f(id, reg, pos) { break },
           _ => fail!("Expected register in inactive")
         },
@@ -523,10 +532,10 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
   }
 
   fn get_hint(&mut self, current: IntervalId) -> Option<RegisterId> {
-    match self.intervals.get(&current).hint {
-      Some(ref id) => match self.intervals.get(id).value {
+    match self.get_interval(&current).hint {
+      Some(ref id) => match self.get_interval(id).value {
         RegisterVal(g, r) => {
-          assert!(g == self.intervals.get(&current).value.group());
+          assert!(g == self.get_interval(&current).value.group());
           Some(r)
         },
         _ => None
@@ -553,11 +562,11 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
   fn split_and_spill<'r>(&'r mut self,
                          current: IntervalId,
                          state: &'r mut AllocatorState) {
-    let reg = match self.intervals.get(&current).value {
+    let reg = match self.get_interval(&current).value {
       RegisterVal(_, r) => r,
       _ => fail!("Expected register value")
     };
-    let start = self.intervals.get(&current).start();
+    let start = self.get_interval(&current).start();
 
     // Filter out intersecting intervals
     let mut to_split = ~[];
@@ -579,18 +588,18 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
                          self.is_gap(&start) {
         start
       } else {
-        start - 1
+        start.prev()
       };
-      let last_use = match self.intervals.get(id).last_use(spill_pos) {
+      let last_use = match self.get_interval(id).last_use(spill_pos) {
         Some(u) => u.pos,
-        None => self.intervals.get(id).start()
+        None => self.get_interval(id).start()
       };
 
       let spill_child = self.split(*id, Between(last_use, spill_pos), state);
-      self.get_interval(&spill_child).value = state.get_spill();
+      self.get_mut_interval(&spill_child).value = state.get_spill();
 
       // Split before next register use position
-      match self.intervals.get(&spill_child).next_use(spill_pos) {
+      match self.get_interval(&spill_child).next_use(spill_pos) {
         Some(u) => {
           self.split(*id, Between(spill_pos, u.pos), state);
         },
@@ -603,16 +612,17 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
 
   fn resolve_data_flow(&mut self, list: &[BlockId]) {
     for list.each() |block_id| {
-      let block_end = self.blocks.get(block_id).end() - 1;
-      let successors = copy self.blocks.get(block_id).successors;
+      let block_end = self.get_block(block_id).end().prev();
+      let successors = copy self.get_block(block_id).successors;
       for successors.each() |succ_id| {
-        let succ_start = copy self.blocks.get(succ_id).start();
-        let live_in = copy self.blocks.get(succ_id).live_in;
+        let succ_start = copy self.get_block(succ_id).start();
+        let live_in = copy self.get_block(succ_id).live_in;
 
-        for live_in.each() |interval_id| {
-          let parent = match self.intervals.get(interval_id).parent {
+        for live_in.each() |&interval| {
+          let interval_id = IntervalId(interval);
+          let parent = match self.get_interval(&interval_id).parent {
             Some(p) => p,
-            None => *interval_id
+            None => interval_id
           };
 
           let from = self.child_at(&parent, block_end)
@@ -625,7 +635,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
             } else {
               block_end
             };
-            self.get_gap(&gap_pos).add_move(&from, &to);
+            self.get_mut_gap(&gap_pos).add_move(&from, &to);
           }
         }
       }
@@ -636,27 +646,28 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       -> Result<(), ~str> {
     let physical = copy self.physical;
     for blocks.each_reverse() |block_id| {
-      let instructions = copy self.blocks.get(block_id).instructions;
-      let live_out = copy self.blocks.get(block_id).live_out;
-      let block_from = self.blocks.get(block_id).start();
-      let block_to = self.blocks.get(block_id).end();
+      let instructions = copy self.get_block(block_id).instructions;
+      let live_out = copy self.get_block(block_id).live_out;
+      let block_from = self.get_block(block_id).start();
+      let block_to = self.get_block(block_id).end();
 
       // Assume that each live_out interval lives for the whole time of block
       // NOTE: we'll shorten it later if definition of this interval appears to
       // be in this block
-      for live_out.each() |int_id| {
-        self.get_interval(int_id).add_range(block_from, block_to);
+      for live_out.each() |&int_id| {
+        self.get_mut_interval(&IntervalId(int_id))
+            .add_range(block_from, block_to);
       }
 
       for instructions.each_reverse() |&instr_id| {
-        let instr = copy *self.instructions.get(&instr_id);
+        let instr = copy *self.get_instr(&instr_id);
 
         // Call instructions should swap out all used registers into stack slots
         for config.register_groups.eachi() |group, &count| {
-          if instr.kind.clobbers(group) {
+          if instr.kind.clobbers(GroupId(group)) {
             for uint::range(0, count) |reg| {
-              self.get_interval(physical.get(&group).get(&reg))
-                  .add_range(instr_id, instr_id + 1);
+              self.get_mut_interval(physical.get(&group).get(&reg))
+                  .add_range(instr_id, instr_id.next());
             }
           }
         }
@@ -665,44 +676,44 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
         match instr.output {
           Some(output) => {
             // Call instructions are defining their value after the call
-            let group = self.intervals.get(&output).value.group();
+            let group = self.get_interval(&output).value.group();
             let pos = if instr.kind.clobbers(group) {
-              instr_id + 1
+              instr_id.next()
             } else {
               instr_id
             };
 
             if self.get_interval(&output).ranges.len() != 0  {
               // Shorten range if output outlives block, or is used anywhere
-              self.get_interval(&output).first_range().start = pos;
+              self.get_mut_interval(&output).first_range().start = pos;
             } else {
               // Add short range otherwise
-              self.get_interval(&output).add_range(pos, pos + 1);
+              self.get_mut_interval(&output).add_range(pos, pos.next());
             }
             let out_kind = instr.kind.result_kind().unwrap();
-            self.get_interval(&output).add_use(out_kind, pos);
+            self.get_mut_interval(&output).add_use(out_kind, pos);
           },
           None => ()
         }
 
         // Process temporary
         for instr.temporary.each() |tmp| {
-          let group = self.intervals.get(tmp).value.group();
+          let group = self.get_interval(tmp).value.group();
           if instr.kind.clobbers(group) {
             return Err(~"Call instruction can't have temporary registers");
           }
-          self.get_interval(tmp).add_range(instr_id, instr_id + 1);
-          self.get_interval(tmp).add_use(UseRegister(group), instr_id);
+          self.get_mut_interval(tmp).add_range(instr_id, instr_id.next());
+          self.get_mut_interval(tmp).add_use(UseRegister(group), instr_id);
         }
 
         // Process inputs
         for instr.inputs.eachi() |i, input_instr| {
           let input = self.get_output(input_instr);
-          if !self.intervals.get(&input).covers(instr_id) {
-            self.get_interval(&input).add_range(block_from, instr_id);
+          if !self.get_interval(&input).covers(instr_id) {
+            self.get_mut_interval(&input).add_range(block_from, instr_id);
           }
           let kind = instr.kind.use_kind(i);
-          self.get_interval(&input).add_use(kind, instr_id);
+          self.get_mut_interval(&input).add_use(kind, instr_id);
         }
       }
     }
@@ -723,7 +734,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
     for list.each() |id| {
       let cur = *id;
 
-      let uses = do (copy self.intervals.get(id).uses).filtered |u| {
+      let uses = do (copy self.get_interval(id).uses).filtered |u| {
         u.kind.is_fixed()
       };
 
@@ -780,7 +791,7 @@ impl AllocatorState {
     } else {
       let slot = self.spill_count;
       self.spill_count += 1;
-      StackVal(self.group, slot)
+      StackVal(self.group, StackId(slot))
     }
   }
 

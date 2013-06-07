@@ -1,7 +1,8 @@
 use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper, Config,
                  DCEKindHelper,
                  UseKind, UseAny, UseRegister, UseFixed,
-                 Value, RegisterVal, StackVal, GroupId, BlockId, InstrId};
+                 Value, RegisterVal, StackVal, GroupId, BlockId, InstrId,
+                 RegisterId};
 use extra::smallintmap::SmallIntMap;
 
 #[deriving(Eq, ToStr)]
@@ -23,8 +24,8 @@ pub enum Kind {
 }
 
 // Register groups
-pub static Normal: GroupId = 0;
-pub static Double: GroupId = 1;
+pub static Normal: GroupId = GroupId(0);
+pub static Double: GroupId = GroupId(1);
 
 impl KindHelper for Kind {
   fn clobbers(&self, _: GroupId) -> bool {
@@ -43,12 +44,12 @@ impl KindHelper for Kind {
 
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(Normal, 2),
-      &JustUse => UseFixed(Normal, 1),
-      &FixedUse => UseFixed(Normal, i),
-      &Print => UseFixed(Normal, 3),
-      &Return => UseFixed(Normal, 0),
-      &ReturnDouble => UseFixed(Double, 0),
+      &BranchIfBigger if i == 0 => UseFixed(Normal, RegisterId(2)),
+      &JustUse => UseFixed(Normal, RegisterId(1)),
+      &FixedUse => UseFixed(Normal, RegisterId(i)),
+      &Print => UseFixed(Normal, RegisterId(3)),
+      &Return => UseFixed(Normal, RegisterId(0)),
+      &ReturnDouble => UseFixed(Double, RegisterId(0)),
       &DoubleSum => UseRegister(Double),
       &ToDouble => UseRegister(Normal),
       _ => UseAny(Normal)
@@ -84,7 +85,7 @@ impl DCEKindHelper for Kind {
 }
 
 pub struct Emulator {
-  ip: InstrId,
+  ip: uint,
   instructions: ~[Instruction],
   blocks: ~SmallIntMap<uint>,
   result: Option<Either<uint, float> >,
@@ -130,7 +131,7 @@ impl GeneratorFunctions<Kind> for Emulator {
 
   fn block(&mut self, id: BlockId) {
     let ip = self.instructions.len();
-    self.blocks.insert(id, ip);
+    self.blocks.insert(id.to_uint(), ip);
     self.instructions.push(Block(id));
   }
 
@@ -214,7 +215,8 @@ impl Emulator {
           self.ip += 1;
         },
         Goto(block) => {
-          let block_ip = self.blocks.find(&block).expect("Block to be present");
+          let block_ip = self.blocks.find(&block.to_uint())
+                                    .expect("Block to be present");
           self.ip = *block_ip;
         },
         Generic(ref instr) => self.exec_generic(instr)
@@ -224,13 +226,13 @@ impl Emulator {
 
   fn get(&self, slot: Value) -> Either<uint, float> {
     match slot {
-      RegisterVal(Normal, r) => Left(*self.registers.find(&r)
+      RegisterVal(Normal, r) => Left(*self.registers.find(&r.to_uint())
                                           .expect("Defined register")),
-      RegisterVal(Double, r) => Right(*self.double_registers.find(&r)
+      RegisterVal(Double, r) => Right(*self.double_registers.find(&r.to_uint())
                                            .expect("Defined double register")),
-      StackVal(Normal, s) => Left(*self.stack.find(&s)
+      StackVal(Normal, s) => Left(*self.stack.find(&s.to_uint())
                                        .expect("Defined stack slot")),
-      StackVal(Double, s) => Right(*self.double_stack.find(&s)
+      StackVal(Double, s) => Right(*self.double_stack.find(&s.to_uint())
                                         .expect("Defined double stack slot")),
       _ => fail!()
     }
@@ -238,11 +240,15 @@ impl Emulator {
 
   fn put(&mut self, slot: Value, value: Either<uint, float>) {
     match slot {
-      RegisterVal(Normal, r) => self.registers.insert(r, value.unwrap_left()),
+      RegisterVal(Normal, r) => self.registers.insert(r.to_uint(),
+                                                      value.unwrap_left()),
       RegisterVal(Double, r) => self.double_registers
-                                    .insert(r, value.unwrap_right()),
-      StackVal(Normal, s) => self.stack.insert(s, value.unwrap_left()),
-      StackVal(Double, s) => self.double_stack.insert(s, value.unwrap_right()),
+                                    .insert(r.to_uint(),
+                                            value.unwrap_right()),
+      StackVal(Normal, s) => self.stack.insert(s.to_uint(),
+                                               value.unwrap_left()),
+      StackVal(Double, s) => self.double_stack.insert(s.to_uint(),
+                                                      value.unwrap_right()),
       _ => fail!()
     };
   }
@@ -285,9 +291,11 @@ impl Emulator {
       BranchIfBigger => {
         self.put(tmp[0], Left(0));
         if inputs[0].unwrap_left() > inputs[1].unwrap_left() {
-          self.ip = *self.blocks.find(&instr.succ[0]).expect("branch true");
+          self.ip = *self.blocks.find(&instr.succ[0].to_uint())
+                                .expect("branch true");
         } else {
-          self.ip = *self.blocks.find(&instr.succ[1]).expect("branch false");
+          self.ip = *self.blocks.find(&instr.succ[1].to_uint())
+                                .expect("branch false");
         }
         return;
       }

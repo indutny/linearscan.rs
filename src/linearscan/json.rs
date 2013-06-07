@@ -16,13 +16,13 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Block<K> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
-    obj.insert(~"id", Number(self.id as float));
+    obj.insert(~"id", Number(self.id.to_uint() as float));
     obj.insert(~"successors", List(do self.successors.map() |succ| {
-      Number(*succ as float)
+      Number(succ.to_uint() as float)
     }));
 
-    obj.insert(~"start", Number(self.start() as float));
-    obj.insert(~"end", Number(self.end() as float));
+    obj.insert(~"start", Number(self.start().to_uint() as float));
+    obj.insert(~"end", Number(self.end().to_uint() as float));
     obj.insert(~"loop_depth", Number(self.loop_depth as float));
 
     return Object(obj);
@@ -33,8 +33,8 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
-    obj.insert(~"id", Number(self.id as float));
-    obj.insert(~"block", Number(self.block as float));
+    obj.insert(~"id", Number(self.id.to_uint() as float));
+    obj.insert(~"block", Number(self.block.to_uint() as float));
     obj.insert(~"kind", String(match self.kind {
       User(kind) => kind.to_str(),
       Gap => ~"~gap",
@@ -42,13 +42,13 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
       Phi(_) => ~"~phi"
     }));
     obj.insert(~"inputs", List(do self.inputs.map() |input| {
-      Number((*input) as float)
+      Number(input.to_uint() as float)
     }));
     obj.insert(~"temporary", List(do self.temporary.map() |t| {
-      Number((*t) as float)
+      Number(t.to_uint() as float)
     }));
     obj.insert(~"output", match self.output {
-      Some(output) => Number(output as float),
+      Some(output) => Number(output.to_uint() as float),
       None => Null
     });
 
@@ -66,8 +66,8 @@ impl ToJson for GapState {
         Move => ~"move",
         Swap => ~"swap"
       }));
-      obj.insert(~"from", Number(act.from as float));
-      obj.insert(~"to", Number(act.to as float));
+      obj.insert(~"from", Number(act.from.to_uint() as float));
+      obj.insert(~"to", Number(act.to.to_uint() as float));
       Object(obj)
     }));
 
@@ -79,13 +79,13 @@ impl ToJson for Interval {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
-    obj.insert(~"id", Number(self.id as float));
+    obj.insert(~"id", Number(self.id.to_uint() as float));
     obj.insert(~"parent", match self.parent {
-      Some(id) => Number(id as float),
+      Some(id) => Number(id.to_uint() as float),
       None => Null
     });
     obj.insert(~"children", List(do self.children.map() |child| {
-      Number(*child as float)
+      Number(child.to_uint() as float)
     }));
     obj.insert(~"ranges", self.ranges.to_json());
     obj.insert(~"uses", self.uses.to_json());
@@ -99,8 +99,8 @@ impl ToJson for LiveRange {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
-    obj.insert(~"start", Number(self.start as float));
-    obj.insert(~"end", Number(self.end as float));
+    obj.insert(~"start", Number(self.start.to_uint() as float));
+    obj.insert(~"end", Number(self.end.to_uint() as float));
 
     return Object(obj);
   }
@@ -119,9 +119,9 @@ impl ToJson for Use {
         kind.insert(~"value", val.to_json())
       }
     };
-    obj.insert(~"group", Number(self.kind.group() as float));
+    obj.insert(~"group", Number(self.kind.group().to_uint() as float));
     obj.insert(~"kind", Object(kind));
-    obj.insert(~"pos", Number(self.pos as float));
+    obj.insert(~"pos", Number(self.pos.to_uint() as float));
 
     return Object(obj);
   }
@@ -173,7 +173,7 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
         _ => fail!("Unexpected instruction JSON type")
       };
 
-      match self.gaps.find(&instruction.id) {
+      match self.gaps.find(&instruction.id.to_uint()) {
         Some(gap) => {
           obj.insert(~"gap_state", gap.to_json());
         },

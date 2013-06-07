@@ -53,15 +53,15 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
       };
 
       // Notify about block start
-      let block = self.blocks.get(&instr.block);
-      if *id == block.start() {
+      let block = self.get_block(&instr.block);
+      if *id == block.start().to_uint() {
         g.block(block.id);
       }
 
       // Call instructions and gaps have GapState
       let is_gap = match instr.kind { Gap => true, _ => false };
       if is_gap || self.gaps.contains_key(id) {
-        self.generate_gap(g, id);
+        self.generate_gap(g, &InstrId(*id));
       }
 
       // Non-gap instructions
@@ -71,7 +71,7 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
           Some(ref out) => {
             let group = instr.kind.result_kind().unwrap().group();
             self.get_value(out, if instr.kind.clobbers(group) {
-              instr.id + 1
+              instr.id.next()
             } else {
               instr.id
             })
@@ -99,10 +99,10 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
       }
 
       // Handle last instruction
-      if instr.id == block.end() - 1 {
+      if instr.id == block.end().prev() {
         match block.successors.len() {
           0 => g.epilogue(),
-          1 => if block.successors[0] != block.id + 1 {
+          1 => if block.successors[0].to_uint() != block.id.to_uint() + 1 {
             // Goto to non-consequent successor
             g.goto(block.successors[0])
           },
@@ -117,10 +117,10 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
 impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > GeneratorHelper<K, G>
     for Graph<K> {
   fn generate_gap(&self, g: &mut G, id: &InstrId) {
-    match self.gaps.find(id) {
+    match self.gaps.find(&id.to_uint()) {
       Some(state) => for state.actions.each() |action| {
-        let from = self.intervals.get(&action.from).value;
-        let to = self.intervals.get(&action.to).value;
+        let from = self.get_interval(&action.from).value;
+        let to = self.get_interval(&action.to).value;
 
         match action.kind {
           Swap => g.swap(from, to),

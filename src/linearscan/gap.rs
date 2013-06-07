@@ -26,20 +26,20 @@ impl<K: KindHelper+Copy> GapResolver for Graph<K> {
   fn resolve_gaps(&mut self) {
     let mut keys = ~[];
     for self.gaps.each_key() |id| {
-      keys.push(*id);
+      keys.push(InstrId(*id));
     }
     for keys.each() |id| {
       let state = self.resolve_gap(id);
 
       // Overwrite previous state
-      self.gaps.insert(*id, state);
+      self.gaps.insert(id.to_uint(), state);
     }
   }
 }
 
 impl<K: KindHelper+Copy> GapResolverHelper for Graph<K> {
   fn resolve_gap(&mut self, id: &InstrId) -> ~GapState {
-    let state = self.gaps.pop(id).unwrap();
+    let state = self.gaps.pop(&id.to_uint()).unwrap();
     let mut status = vec::from_elem(state.actions.len(), ToMove);
 
     let mut i = 0;
@@ -59,8 +59,8 @@ impl<K: KindHelper+Copy> GapResolverHelper for Graph<K> {
               s: &mut [MoveStatus],
               result: &mut ~[GapAction]) -> bool {
     assert!(actions[i].kind == Move);
-    let from = self.intervals.get(&actions[i].from).value;
-    let to = self.intervals.get(&actions[i].to).value;
+    let from = self.get_interval(&actions[i].from).value;
+    let to = self.get_interval(&actions[i].to).value;
 
     // Ignore nop moves
     if from == to { return false; }
@@ -71,7 +71,7 @@ impl<K: KindHelper+Copy> GapResolverHelper for Graph<K> {
     let mut sentinel = false;
     while j < actions.len() {
       assert!(actions[j].kind == Move);
-      let other_from = self.intervals.get(&actions[j].from).value;
+      let other_from = self.get_interval(&actions[j].from).value;
 
       if other_from == to {
         match s[j] {

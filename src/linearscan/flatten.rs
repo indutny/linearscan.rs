@@ -35,14 +35,14 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     // Visit each block and find loop ends
     while queue.len() > 0 {
       let cur = queue.shift();
-      visited.insert(cur);
-      for self.blocks.get(&cur).successors.each() |succ| {
-        if visited.contains(succ) {
+      visited.insert(cur.to_uint());
+      for self.get_block(&cur).successors.each() |succ| {
+        if visited.contains(&succ.to_uint()) {
           // Loop detected
-          if ends.contains_key(succ) {
-            ends.find_mut(succ).unwrap().push(cur);
+          if ends.contains_key(&succ.to_uint()) {
+            ends.find_mut(&succ.to_uint()).unwrap().push(cur);
           } else {
-            ends.insert(*succ, ~[cur]);
+            ends.insert(succ.to_uint(), ~[cur]);
           }
         } else {
           queue.push(*succ);
@@ -57,23 +57,24 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     let ends = self.flatten_get_ends();
     let mut loop_index = 1;
 
-    for ends.each() |start, ends| {
+    for ends.each() |&start, ends| {
+      let start_id = BlockId(start);
       let mut visited = ~BitvSet::new();
       let mut queue = ~[];
-      let expected_depth = self.blocks.get(start).loop_depth;
+      let expected_depth = self.get_block(&start_id).loop_depth;
 
       // Decrement number of incoming forward branches
-      assert!(self.blocks.get(start).incoming_forward_branches == 2);
-      self.get_block(start).incoming_forward_branches -= 1;
+      assert!(self.get_block(&start_id).incoming_forward_branches == 2);
+      self.get_mut_block(&start_id).incoming_forward_branches -= 1;
 
       for ends.each() |end| { queue.push(*end); }
 
       while queue.len() > 0 {
         let cur = queue.shift();
-        let block = self.get_block(&cur);
+        let block = self.get_mut_block(&cur);
 
         // Skip visited blocks
-        if !visited.insert(cur) { loop; }
+        if !visited.insert(cur.to_uint()) { loop; }
 
         // Set depth and index of not-visited-yet nodes,
         // if we're not visiting nested loop
@@ -83,7 +84,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
         }
 
         // Enqueue predecessors if current is not a loop start
-        if cur != *start {
+        if cur.to_uint() != start {
           for block.predecessors.each() |pred| {
             queue.push(*pred);
           }
@@ -102,20 +103,20 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     let mut mapping = ~SmallIntMap::new();
 
     for list.each() |id| {
-      let mut block = self.blocks.pop(id).expect("block");
+      let mut block = self.blocks.pop(&id.to_uint()).expect("block");
 
       // Update root id
       if block.id == self.root.expect("Root block") {
-        self.root = Some(block_id);
+        self.root = Some(BlockId(block_id));
       }
 
-      mapping.insert(block.id, block_id);
-      block.id = block_id;
+      mapping.insert(block.id.to_uint(), BlockId(block_id));
+      block.id = BlockId(block_id);
       block_id += 1;
 
       // Update block id in it's instructions
       for block.instructions.each() |instr_id| {
-        self.get_instr(instr_id).block = block.id;
+        self.get_mut_instr(instr_id).block = block.id;
       }
 
       result.push(block.id);
@@ -129,12 +130,12 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
     while queue.len() > 0 {
       let mut block = queue.pop();
       block.successors = do block.successors.map() |succ| {
-        *mapping.find(succ).expect("successor")
+        *mapping.find(&succ.to_uint()).expect("successor")
       };
       block.predecessors = do block.predecessors.map() |pred| {
-        *mapping.find(pred).expect("predecessor")
+        *mapping.find(&pred.to_uint()).expect("predecessor")
       };
-      self.blocks.insert(block.id, block);
+      self.blocks.insert(block.id.to_uint(), block);
     }
 
     return result;
@@ -147,7 +148,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
 
     // Go through blocks and map instructions
     for list.each() |block| {
-      let list = copy self.blocks.get(block).instructions;
+      let list = copy self.get_block(block).instructions;
       let mut new_list = ~[];
       let start_gap = self.create_gap(block);
       new_list.push(start_gap.id);
@@ -155,14 +156,14 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
 
       for list.eachi() |i, id| {
         // Pop each instruction from map
-        let mut instr = self.instructions.pop(id).unwrap();
+        let mut instr = self.instructions.pop(&id.to_uint()).unwrap();
 
         // Insert mapping
-        map.insert(instr.id, self.instr_id);
+        let id = self.instr_id();
+        map.insert(instr.id.to_uint(), id);
 
         // And update its id
-        instr.id = self.instr_id;
-        self.instr_id += 1;
+        instr.id = id;
 
         // Construct new block instructions list and insert instruction into
         // new map
@@ -183,20 +184,21 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
       }
 
       // Replace block's instruction list
-      self.get_block(block).instructions = new_list;
+      self.get_mut_block(block).instructions = new_list;
     }
 
     // Add phis to queue
     let mut i = 0;
     while i < self.phis.len() {
-      let mut phi = self.instructions.pop(&self.phis[i]).expect("Phi");
+      let mut phi = self.instructions.pop(&self.phis[i].to_uint())
+                                     .expect("Phi");
 
       // Insert mapping
-      map.insert(phi.id, self.instr_id);
+      let id = self.instr_id();
+      map.insert(phi.id.to_uint(), id);
 
       // Update id
-      phi.id = self.instr_id;
-      self.instr_id += 1;
+      phi.id = id;
 
       // Queue phi
       queue.push(phi);
@@ -212,13 +214,13 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
 
       // Update inputs
       instr.inputs = do instr.inputs.map() |i| {
-        match map.find(i) {
+        match map.find(&i.to_uint()) {
           Some(r) => *r,
           None => *i
         }
       };
 
-      self.instructions.insert(instr.id, instr);
+      self.instructions.insert(instr.id.to_uint(), instr);
     }
   }
 }
@@ -236,14 +238,14 @@ impl<K: KindHelper+Copy> Flatten for Graph<K> {
       let cur = queue.shift();
 
       // Skip visited blocks
-      if !visited.insert(cur) { loop; }
+      if !visited.insert(cur.to_uint()) { loop; }
 
       list.push(cur);
 
       // Visit successors if they've no unvisited incoming forward edges
-      let successors = copy self.blocks.get(&cur).successors;
+      let successors = copy self.get_block(&cur).successors;
       for successors.each() |succ_id| {
-        let succ = self.get_block(succ_id);
+        let succ = self.get_mut_block(succ_id);
         if succ.incoming_forward_branches == 0 {
           loop;
         }

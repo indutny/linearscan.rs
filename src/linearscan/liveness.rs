@@ -24,21 +24,22 @@ impl<K: KindHelper+Copy> Liveness for Graph<K> {
 impl<K: KindHelper+Copy> LivenessHelper for Graph<K> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
-      let instructions = copy self.blocks.get(block).instructions;
+      let instructions = copy self.get_block(block).instructions;
 
       for instructions.each() |instr| {
-        let output = self.instructions.get(instr).output;
-        let inputs = copy self.instructions.get(instr).inputs;
+        let output = self.get_instr(instr).output;
+        let inputs = copy self.get_instr(instr).inputs;
 
         match output {
-          Some(output) => self.get_block(block).live_kill.insert(output),
+          Some(output) => self.get_mut_block(block).live_kill
+                              .insert(output.to_uint()),
           None => true
         };
 
         for inputs.each() |input_instr| {
           let input = self.get_output(input_instr);
-          if !self.blocks.get(block).live_kill.contains(&input) {
-            self.get_block(block).live_gen.insert(input);
+          if !self.get_block(block).live_kill.contains(&input.to_uint()) {
+            self.get_mut_block(block).live_gen.insert(input.to_uint());
           }
         }
       }
@@ -51,27 +52,27 @@ impl<K: KindHelper+Copy> LivenessHelper for Graph<K> {
       change = false;
 
       for blocks.each_reverse() |block| {
-        let successors = copy self.blocks.get(block).successors;
+        let successors = copy self.get_block(block).successors;
 
         let mut tmp = ~BitvSet::new();
         for successors.each() |succ| {
-          tmp.union_with(self.blocks.get(succ).live_in);
+          tmp.union_with(self.get_block(succ).live_in);
         }
 
         // Propagate succ.live_in to block.live_out
-        if self.blocks.get(block).live_out != tmp {
-          self.get_block(block).live_out = tmp;
+        if self.get_block(block).live_out != tmp {
+          self.get_mut_block(block).live_out = tmp;
           change = true;
         }
 
         // Propagate:
         // `union(diff(block.live_out, block.live_kill), block.live_gen)`
         // to block.live_in
-        let mut old = copy self.blocks.get(block).live_out;
-        old.difference_with(self.blocks.get(block).live_kill);
-        old.union_with(self.blocks.get(block).live_gen);
-        if old != self.blocks.get(block).live_in {
-          self.get_block(block).live_in = old;
+        let mut old = copy self.get_block(block).live_out;
+        old.difference_with(self.get_block(block).live_kill);
+        old.union_with(self.get_block(block).live_gen);
+        if old != self.get_block(block).live_in {
+          self.get_mut_block(block).live_in = old;
           change = true;
         }
       }
