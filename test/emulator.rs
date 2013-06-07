@@ -1,7 +1,7 @@
 use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper, Config,
                  DCEKindHelper,
                  UseKind, UseAny, UseRegister, UseFixed,
-                 Value, RegisterVal, StackVal, GroupId, BlockId, InstrId,
+                 Value, RegisterVal, StackVal, GroupId, BlockId,
                  RegisterId};
 use extra::smallintmap::SmallIntMap;
 
@@ -24,8 +24,8 @@ pub enum Kind {
 }
 
 // Register groups
-pub static Normal: GroupId = GroupId(0);
-pub static Double: GroupId = GroupId(1);
+pub static Normal: uint = 0;
+pub static Double: uint = 1;
 
 impl KindHelper for Kind {
   fn clobbers(&self, _: GroupId) -> bool {
@@ -37,22 +37,22 @@ impl KindHelper for Kind {
 
   fn temporary(&self) -> ~[GroupId] {
     match self {
-      &BranchIfBigger => ~[Normal],
+      &BranchIfBigger => ~[GroupId(Normal)],
       _ => ~[]
     }
   }
 
   fn use_kind(&self, i: uint) -> UseKind {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(Normal, RegisterId(2)),
-      &JustUse => UseFixed(Normal, RegisterId(1)),
-      &FixedUse => UseFixed(Normal, RegisterId(i)),
-      &Print => UseFixed(Normal, RegisterId(3)),
-      &Return => UseFixed(Normal, RegisterId(0)),
-      &ReturnDouble => UseFixed(Double, RegisterId(0)),
-      &DoubleSum => UseRegister(Double),
-      &ToDouble => UseRegister(Normal),
-      _ => UseAny(Normal)
+      &BranchIfBigger if i == 0 => UseFixed(GroupId(Normal), RegisterId(2)),
+      &JustUse => UseFixed(GroupId(Normal), RegisterId(1)),
+      &FixedUse => UseFixed(GroupId(Normal), RegisterId(i)),
+      &Print => UseFixed(GroupId(Normal), RegisterId(3)),
+      &Return => UseFixed(GroupId(Normal), RegisterId(0)),
+      &ReturnDouble => UseFixed(GroupId(Double), RegisterId(0)),
+      &DoubleSum => UseRegister(GroupId(Double)),
+      &ToDouble => UseRegister(GroupId(Normal)),
+      _ => UseAny(GroupId(Normal))
     }
   }
 
@@ -64,10 +64,10 @@ impl KindHelper for Kind {
       &JustUse => None,
       &FixedUse => None,
       &Nop => None,
-      &DoubleNumber(_) => Some(UseAny(Double)),
-      &DoubleSum => Some(UseRegister(Double)),
-      &ToDouble => Some(UseRegister(Double)),
-      _ => Some(UseRegister(Normal))
+      &DoubleNumber(_) => Some(UseAny(GroupId(Double))),
+      &DoubleSum => Some(UseRegister(GroupId(Double))),
+      &ToDouble => Some(UseRegister(GroupId(Double))),
+      _ => Some(UseRegister(GroupId(Normal)))
     }
   }
 }
@@ -226,29 +226,40 @@ impl Emulator {
 
   fn get(&self, slot: Value) -> Either<uint, float> {
     match slot {
-      RegisterVal(Normal, r) => Left(*self.registers.find(&r.to_uint())
-                                          .expect("Defined register")),
-      RegisterVal(Double, r) => Right(*self.double_registers.find(&r.to_uint())
-                                           .expect("Defined double register")),
-      StackVal(Normal, s) => Left(*self.stack.find(&s.to_uint())
-                                       .expect("Defined stack slot")),
-      StackVal(Double, s) => Right(*self.double_stack.find(&s.to_uint())
-                                        .expect("Defined double stack slot")),
+      RegisterVal(GroupId(Normal), r) => {
+        Left(*self.registers.find(&r.to_uint())
+                  .expect("Defined register"))
+      },
+      RegisterVal(GroupId(Double), r) => {
+        Right(*self.double_registers.find(&r.to_uint())
+                   .expect("Defined double register"))
+      },
+      StackVal(GroupId(Normal), s) => {
+        Left(*self.stack.find(&s.to_uint())
+                  .expect("Defined stack slot"))
+      },
+      StackVal(GroupId(Double), s) => {
+        Right(*self.double_stack.find(&s.to_uint())
+                   .expect("Defined double stack slot"))
+      },
       _ => fail!()
     }
   }
 
   fn put(&mut self, slot: Value, value: Either<uint, float>) {
     match slot {
-      RegisterVal(Normal, r) => self.registers.insert(r.to_uint(),
-                                                      value.unwrap_left()),
-      RegisterVal(Double, r) => self.double_registers
-                                    .insert(r.to_uint(),
-                                            value.unwrap_right()),
-      StackVal(Normal, s) => self.stack.insert(s.to_uint(),
-                                               value.unwrap_left()),
-      StackVal(Double, s) => self.double_stack.insert(s.to_uint(),
-                                                      value.unwrap_right()),
+      RegisterVal(GroupId(Normal), r) => {
+        self.registers.insert(r.to_uint(), value.unwrap_left())
+      },
+      RegisterVal(GroupId(Double), r) => {
+        self.double_registers.insert(r.to_uint(), value.unwrap_right())
+      },
+      StackVal(GroupId(Normal), s) => {
+        self.stack.insert(s.to_uint(), value.unwrap_left())
+      },
+      StackVal(GroupId(Double), s) => {
+        self.double_stack.insert(s.to_uint(), value.unwrap_right())
+      },
       _ => fail!()
     };
   }

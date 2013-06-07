@@ -3,7 +3,7 @@ extern mod extra;
 use extra::json::ToJson;
 use std::uint;
 use linearscan::{Allocator, Generator, GeneratorFunctions, DCE,
-                 Graph, InstrId, BlockId};
+                 Graph, InstrId, BlockId, GroupId};
 use emulator::*;
 
 #[path="../src/linearscan.rs"]
@@ -13,7 +13,7 @@ mod emulator;
 #[test]
 fn realword_example() {
   do run_test(Left(21)) |g| {
-    let phi = g.phi(Normal);
+    let phi = g.phi(GroupId(Normal));
 
     let cond = g.empty_block();
     let left = g.empty_block();
@@ -70,8 +70,8 @@ fn nested_loops() {
                    in: InstrId,
                    f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
         -> Option<LoopResult> {
-      let phi = g.phi(Normal);
-      let res_phi = g.phi(Normal);
+      let phi = g.phi(GroupId(Normal));
+      let res_phi = g.phi(GroupId(Normal));
       let cond = g.empty_block();
       let body = g.empty_block();
       let after = g.empty_block();
