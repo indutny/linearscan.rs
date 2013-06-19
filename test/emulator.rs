@@ -89,15 +89,15 @@ impl KindHelper<Group, Register> for Kind {
 
   fn use_kind(&self, i: uint) -> UseKind<Group, Register> {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(Normal, rcx),
-      &JustUse => UseFixed(Normal, rbx),
+      &BranchIfBigger if i == 0 => UseFixed(rcx),
+      &JustUse => UseFixed(rbx),
       &FixedUse => {
         let r: Register = RegisterHelper::from_uint(&Normal, i);
-        UseFixed(Normal, r)
+        UseFixed(r)
       },
-      &Print => UseFixed(Normal, rdx),
-      &Return => UseFixed(Normal, rax),
-      &ReturnDouble => UseFixed(Double, xmm1),
+      &Print => UseFixed(rdx),
+      &Return => UseFixed(rax),
+      &ReturnDouble => UseFixed(xmm1),
       &DoubleSum => UseRegister(Double),
       &ToDouble => UseRegister(Normal),
       _ => UseAny(Normal)
@@ -268,11 +268,11 @@ impl Emulator {
 
   fn get(&self, slot: Value<Group, Register>) -> Either<uint, float> {
     match slot {
-      RegisterVal(Normal, r) => {
+      RegisterVal(r) if r.group() == Normal => {
         Left(*self.registers.find(&r.to_uint())
                   .expect("Defined register"))
       },
-      RegisterVal(Double, r) => {
+      RegisterVal(r) if r.group() == Double => {
         Right(*self.double_registers.find(&r.to_uint())
                    .expect("Defined double register"))
       },
@@ -290,10 +290,10 @@ impl Emulator {
 
   fn put(&mut self, slot: Value<Group, Register>, value: Either<uint, float>) {
     match slot {
-      RegisterVal(Normal, r) => {
+      RegisterVal(r) if r.group() == Normal => {
         self.registers.insert(r.to_uint(), value.unwrap_left())
       },
-      RegisterVal(Double, r) => {
+      RegisterVal(r) if r.group() == Double => {
         self.double_registers.insert(r.to_uint(), value.unwrap_right())
       },
       StackVal(Normal, s) => {

@@ -86,7 +86,7 @@ pub struct Interval<G, R> {
 #[deriving(Eq, Clone)]
 pub enum Value<G, R> {
   VirtualVal(G),
-  RegisterVal(G, R),
+  RegisterVal(R),
   StackVal(G, StackId)
 }
 
@@ -100,7 +100,7 @@ pub struct Use<G, R> {
 pub enum UseKind<G, R> {
   UseAny(G),
   UseRegister(G),
-  UseFixed(G, R)
+  UseFixed(R)
 }
 
 #[deriving(Eq)]
@@ -607,7 +607,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   pub fn next_fixed_use(&self, after: InstrId) -> Option<Use<G, R> > {
     for self.uses.each() |u| {
       match u.kind {
-        UseFixed(_, _) if u.pos >= after => { return Some(u.clone()); },
+        UseFixed(_) if u.pos >= after => { return Some(u.clone()); },
         _ => ()
       }
     };
@@ -708,7 +708,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Value<G, R> {
   pub fn group(&self) -> G {
     match self {
       &VirtualVal(ref g) => g.clone(),
-      &RegisterVal(ref g, _) => g.clone(),
+      &RegisterVal(ref r) => r.group(),
       &StackVal(ref g, _) => g.clone()
     }
   }
@@ -717,7 +717,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Value<G, R> {
 impl<G: GroupHelper, R: RegisterHelper<G> > UseKind<G, R> {
   pub fn is_fixed(&self) -> bool {
     match self {
-      &UseFixed(_, _) => true,
+      &UseFixed(_) => true,
       _ => false
     }
   }
@@ -733,7 +733,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > UseKind<G, R> {
     match self {
       &UseRegister(ref g) => g.clone(),
       &UseAny(ref g) => g.clone(),
-      &UseFixed(ref g, _) => g.clone()
+      &UseFixed(ref r) => r.group(),
     }
   }
 }

@@ -135,7 +135,7 @@ impl<G: GroupHelper,
         let group = GroupHelper::from_uint::<G>(group_id);
         let interval = Interval::new::<G, R, K>(self, group.clone());
         self.get_mut_interval(&interval).value =
-            RegisterVal(group.clone(), RegisterHelper::from_uint(&group, reg));
+            RegisterVal(RegisterHelper::from_uint(&group, reg));
         self.get_mut_interval(&interval).fixed = true;
         self.physical.find_mut(&group_id).unwrap().insert(reg, interval);
       }
@@ -263,7 +263,7 @@ impl<G: GroupHelper,
 
       // Push register interval to active
       match self.get_interval(&current).value {
-        RegisterVal(_, _) => state.active.push(current),
+        RegisterVal(_) => state.active.push(current),
         _ => ()
       }
     }
@@ -296,7 +296,7 @@ impl<G: GroupHelper,
       // Intervals with fixed use should have specific register
       Some(u) => {
         match u.kind {
-          UseFixed(_, r) => {
+          UseFixed(r) => {
             reg = r.to_uint();
             max_pos = InstrId(free_pos[reg]);
           },
@@ -368,8 +368,7 @@ impl<G: GroupHelper,
 
     // Give current a register
     self.get_mut_interval(&current).value =
-        RegisterVal(*state.group.clone(),
-                    RegisterHelper::from_uint::<G, R>(state.group, reg));
+        RegisterVal(RegisterHelper::from_uint::<G, R>(state.group, reg));
 
     return true;
   }
@@ -435,7 +434,7 @@ impl<G: GroupHelper,
       // Intervals with fixed use should have specific register
       Some(u) => {
         match u.kind {
-          UseFixed(_, r) => {
+          UseFixed(r) => {
             reg = r.to_uint();
             max_pos = use_pos[reg];
           },
@@ -479,8 +478,7 @@ impl<G: GroupHelper,
         } else {
           // Assign register to current
           self.get_mut_interval(&current).value =
-              RegisterVal(*state.group.clone(),
-                          RegisterHelper::from_uint(state.group, reg));
+              RegisterVal(RegisterHelper::from_uint(state.group, reg));
 
           // If blocked somewhere before end by fixed interval
           if block_pos[reg] <= self.get_interval(&current).end().to_uint() {
@@ -505,7 +503,7 @@ impl<G: GroupHelper,
                      f: &fn(i: &IntervalId, reg: &R) -> bool) -> bool {
     for state.active.each() |id| {
       match self.get_interval(id).value {
-        RegisterVal(_, ref reg) => if !f(id, reg) { break },
+        RegisterVal(ref reg) => if !f(id, reg) { break },
         _ => fail!("Expected register in active")
       };
     }
@@ -521,7 +519,7 @@ impl<G: GroupHelper,
     for state.inactive.each() |id| {
       match self.get_intersection(id, &current) {
         Some(pos) => match self.get_interval(id).value {
-          RegisterVal(_, ref reg) => if !f(id, reg, pos) { break },
+          RegisterVal(ref reg) => if !f(id, reg, pos) { break },
           _ => fail!("Expected register in inactive")
         },
         None => ()
@@ -543,8 +541,8 @@ impl<G: GroupHelper,
   fn get_hint(&mut self, current: IntervalId) -> Option<R> {
     match self.get_interval(&current).hint {
       Some(ref id) => match self.get_interval(id).value {
-        RegisterVal(ref g, ref r) => {
-          assert!(g == &self.get_interval(&current).value.group());
+        RegisterVal(ref r) => {
+          assert!(r.group() == self.get_interval(&current).value.group());
           Some(r.clone())
         },
         _ => None
@@ -572,7 +570,7 @@ impl<G: GroupHelper,
                          current: IntervalId,
                          state: &'r mut AllocatorState<G, R>) {
     let reg = match self.get_interval(&current).value {
-      RegisterVal(_, ref r) => r.clone(),
+      RegisterVal(ref r) => r.clone(),
       _ => fail!("Expected register value")
     };
     let start = self.get_interval(&current).start();
@@ -776,11 +774,11 @@ impl<G: GroupHelper,
             // Any use - no restrictions
             UseAny(_) => (),
             UseRegister(_) => match interval.value {
-              RegisterVal(_, _) => (), // ok
+              RegisterVal(_) => (), // ok
               _ => fail!("Register expected")
             },
-            UseFixed(_, ref r0) => match interval.value {
-              RegisterVal(_, ref r1) if r0 == r1 => (), // ok
+            UseFixed(ref r0) => match interval.value {
+              RegisterVal(ref r1) if r0 == r1 => (), // ok
               _ => fail!("Expected fixed register")
             }
           }

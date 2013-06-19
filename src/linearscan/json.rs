@@ -120,7 +120,7 @@ impl<G: GroupHelper+ToStr,
     match self.kind {
       UseAny(_) => kind.insert(~"type", String(~"any")),
       UseRegister(_) => kind.insert(~"type", String(~"reg")),
-      UseFixed(_, ref val) => {
+      UseFixed(ref val) => {
         kind.insert(~"type", String(~"fixed"));
         kind.insert(~"value", String(val.to_str()))
       }
@@ -138,7 +138,7 @@ impl<G: GroupHelper+ToStr,
   fn to_json(&self) -> Json {
     return String(match self {
       &VirtualVal(ref g) => ~"v{" + g.to_str() + "}",
-      &RegisterVal(ref g, ref id) => ~"r{" + g.to_str() + "}" + id.to_str(),
+      &RegisterVal(ref id) => id.to_str(),
       &StackVal(ref g, id) => ~"s{" + g.to_str() + "}" + id.to_str()
     });
   }
