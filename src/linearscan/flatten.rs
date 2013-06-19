@@ -29,7 +29,7 @@ trait FlattenHelper {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> FlattenHelper for Graph<K, G, R> {
+     K: KindHelper<G, R> > FlattenHelper for Graph<K, G, R> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
     let mut queue = ~[self.root.expect("Root block")];
     let mut visited = ~BitvSet::new();
@@ -230,7 +230,7 @@ impl<G: GroupHelper,
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> Flatten for Graph<K, G, R> {
+     K: KindHelper<G, R> > Flatten for Graph<K, G, R> {
   fn flatten(&mut self) {
     self.flatten_assign_indexes();
 

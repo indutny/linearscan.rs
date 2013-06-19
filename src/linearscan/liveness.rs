@@ -16,7 +16,7 @@ trait LivenessHelper {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> Liveness for Graph<K, G, R> {
+     K: KindHelper<G, R> > Liveness for Graph<K, G, R> {
   fn liveness_analysis(&mut self) {
     let blocks = self.get_block_list();
     self.build_local(blocks);
@@ -26,7 +26,7 @@ impl<G: GroupHelper,
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> LivenessHelper for Graph<K, G, R> {
+     K: KindHelper<G, R> > LivenessHelper for Graph<K, G, R> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
       let instructions = copy self.get_block(block).instructions;

@@ -110,7 +110,7 @@ trait AllocatorHelper<G: GroupHelper, R: RegisterHelper<G> > {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> Allocator for Graph<K, G, R> {
+     K: KindHelper<G, R> > Allocator for Graph<K, G, R> {
   fn prepare(&mut self) {
     if self.prepared {
       return;
@@ -182,7 +182,7 @@ impl<G: GroupHelper,
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> AllocatorHelper<G, R> for Graph<K, G, R> {
+     K: KindHelper<G, R> > AllocatorHelper<G, R> for Graph<K, G, R> {
   fn walk_intervals(&mut self,
                     group: G,
                     config: Config) -> Result<GroupResult, ~str> {

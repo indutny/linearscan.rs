@@ -42,7 +42,7 @@ pub trait GeneratorHelper<K, GF> {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone,
+     K: KindHelper<G, R>,
      GF: GeneratorFunctions<K, G, R> > Generator<K, GF>
     for Graph<K, G, R> {
   fn generate(&self, g: &mut GF) {
@@ -124,7 +124,7 @@ impl<G: GroupHelper,
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone,
+     K: KindHelper<G, R>,
      GF: GeneratorFunctions<K, G, R> > GeneratorHelper<K, GF>
     for Graph<K, G, R> {
   fn generate_gap(&self, g: &mut GF, id: &InstrId) {

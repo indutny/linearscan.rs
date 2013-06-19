@@ -26,7 +26,7 @@ pub trait RegisterHelper<Group>: Clone+Eq {
   fn from_uint(g: &Group, i: uint) -> Self;
 }
 
-pub trait KindHelper<G: GroupHelper, R: RegisterHelper<G> > {
+pub trait KindHelper<G: GroupHelper, R: RegisterHelper<G> >: Clone {
   fn clobbers(&self, group: &G) -> bool;
   fn temporary(&self) -> ~[G];
   fn use_kind(&self, i: uint) -> UseKind<G, R>;
@@ -35,7 +35,7 @@ pub trait KindHelper<G: GroupHelper, R: RegisterHelper<G> > {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> Graph<K, G, R> {
+     K: KindHelper<G, R> > Graph<K, G, R> {
   /// Create empty block
   pub fn empty_block(&mut self) -> BlockId {
     let block = ~Block::new(self);
@@ -90,7 +90,7 @@ impl<G: GroupHelper,
 impl<'self,
      G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> BlockBuilder<'self, K, G, R> {
+     K: KindHelper<G, R> > BlockBuilder<'self, K, G, R> {
   /// add instruction to block
   pub fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = self.graph.new_instr(kind, args);

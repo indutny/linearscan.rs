@@ -14,7 +14,7 @@ trait JsonHelper {
 
 impl<G: GroupHelper+ToStr,
      R: RegisterHelper<G>+ToStr,
-     K: KindHelper<G, R>+Clone+ToStr> ToJson for Block<K> {
+     K: KindHelper<G, R>+ToStr> ToJson for Block<K> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -33,7 +33,7 @@ impl<G: GroupHelper+ToStr,
 
 impl<G: GroupHelper+ToStr,
      R: RegisterHelper<G>+ToStr,
-     K: KindHelper<G, R>+Clone+ToStr> ToJson for Instruction<K, G> {
+     K: KindHelper<G, R>+ToStr> ToJson for Instruction<K, G> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -146,7 +146,7 @@ impl<G: GroupHelper+ToStr,
 
 impl<G: GroupHelper+ToStr,
      R: RegisterHelper<G>+ToStr,
-     K: KindHelper<G, R>+Clone+ToStr> JsonHelper for Graph<K, G, R> {
+     K: KindHelper<G, R>+ToStr> JsonHelper for Graph<K, G, R> {
   fn get_blocks(&self) -> Json {
     let mut result = ~[];
 
@@ -198,7 +198,7 @@ impl<G: GroupHelper+ToStr,
 
 impl<G: GroupHelper+ToStr,
      R: RegisterHelper<G>+ToStr,
-     K: KindHelper<G, R>+Clone+ToStr> ToJson for Graph<K, G, R> {
+     K: KindHelper<G, R>+ToStr> ToJson for Graph<K, G, R> {
   fn to_json(&self) -> Json {
     let mut result = ~HashMap::new();
 

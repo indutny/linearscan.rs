@@ -127,7 +127,7 @@ pub struct GapAction {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> Graph<K, G, R> {
+     K: KindHelper<G, R> > Graph<K, G, R> {
   /// Create new graph
   pub fn new() -> Graph<K, G, R> {
     Graph {
@@ -460,7 +460,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper, R: RegisterHelper<G>, K: KindHelper<G, R>+Clone> Block<K> {
+impl<G: GroupHelper, R: RegisterHelper<G>, K: KindHelper<G, R> > Block<K> {
   /// Create new empty block
   pub fn new(graph: &mut Graph<K, G, R>) -> Block<K> {
     Block {
@@ -495,7 +495,7 @@ impl<G: GroupHelper, R: RegisterHelper<G>, K: KindHelper<G, R>+Clone> Block<K> {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> Instruction<K, G> {
+     K: KindHelper<G, R> > Instruction<K, G> {
   /// Create instruction without output interval
   pub fn new_empty(graph: &mut Graph<K, G, R>,
                    kind: InstrKind<K, G>,
@@ -538,8 +538,8 @@ impl<G: GroupHelper,
 
 impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   /// Create new virtual interval
-  pub fn new<K: KindHelper<G, R>+Clone>(graph: &mut Graph<K, G, R>,
-                                        group: G) -> IntervalId {
+  pub fn new<K: KindHelper<G, R> >(graph: &mut Graph<K, G, R>,
+                                   group: G) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: VirtualVal(group),
@@ -637,7 +637,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
 
 impl<G: GroupHelper,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R>+Clone> KindHelper<G, R> for InstrKind<K, G> {
+     K: KindHelper<G, R> > KindHelper<G, R> for InstrKind<K, G> {
   /// Return true if instruction is clobbering registers
   pub fn clobbers(&self, group: &G) -> bool {
     match self {
