@@ -1,8 +1,4 @@
-use linearscan::{Graph, Generator, GeneratorFunctions, KindHelper, Config,
-                 DCEKindHelper,
-                 UseKind, UseAny, UseRegister, UseFixed,
-                 Value, RegisterVal, StackVal, GroupId, BlockId,
-                 RegisterId};
+use linearscan::*;
 use extra::smallintmap::SmallIntMap;
 
 #[deriving(Eq, ToStr)]
