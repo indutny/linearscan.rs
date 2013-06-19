@@ -34,7 +34,6 @@ pub enum Register {
 }
 
 impl GroupHelper<Register> for Group {
-  fn any() -> Group { Normal }
   fn groups() -> ~[Group] {
     ~[Normal, Double]
   }

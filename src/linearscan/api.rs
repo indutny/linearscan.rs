@@ -15,7 +15,6 @@ struct BlockBuilder<'self, K, G, R> {
 }
 
 pub trait GroupHelper<Register>: Clone+Eq {
-  fn any() -> Self;
   fn groups() -> ~[Self];
   fn registers(&self) -> ~[Register];
   fn to_uint(&self) -> uint;

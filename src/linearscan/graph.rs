@@ -663,8 +663,7 @@ impl<G: GroupHelper<R>,
   pub fn use_kind(&self, i: uint) -> UseKind<G, R> {
     match self {
       &User(ref k) => k.use_kind(i),
-      // note: group is not important for gap
-      &Gap => UseAny(GroupHelper::any()),
+      &Gap => fail!("Gap can't have any input"),
       &Phi(ref g) => UseAny(g.clone()),
       &ToPhi(ref g) => UseAny(g.clone())
     }
