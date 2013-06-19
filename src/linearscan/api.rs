@@ -144,4 +144,3 @@ impl<'self, K: KindHelper+Clone> BlockBuilder<'self, K> {
     self.graph.set_root(self.block);
   }
 }
-
