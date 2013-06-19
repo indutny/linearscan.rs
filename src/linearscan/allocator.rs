@@ -707,7 +707,7 @@ impl<G: GroupHelper<R>,
             return Err(~"Call instruction can't have temporary registers");
           }
           self.get_mut_interval(tmp).add_range(instr_id, instr_id.next());
-          self.get_mut_interval(tmp).add_use(UseRegister(group), instr_id);
+          self.get_mut_interval(tmp).add_use(group.use_reg(), instr_id);
         }
 
         // Process inputs
