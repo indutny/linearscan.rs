@@ -23,7 +23,7 @@ trait GapResolverHelper {
               result: &mut ~[GapAction]) -> bool;
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R>+Clone> GapResolver for Graph<K, G, R> {
   fn resolve_gaps(&mut self) {
@@ -40,7 +40,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R>+Clone> GapResolverHelper for Graph<K, G, R> {
   fn resolve_gap(&mut self, id: &InstrId) -> ~GapState {

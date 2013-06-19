@@ -126,7 +126,7 @@ pub struct GapAction {
   to: IntervalId
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > Graph<K, G, R> {
   /// Create new graph
@@ -461,7 +461,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper, R: RegisterHelper<G>, K: KindHelper<G, R> > Block<K> {
+impl<G: GroupHelper<R>, R: RegisterHelper<G>, K: KindHelper<G, R> > Block<K> {
   /// Create new empty block
   pub fn new(graph: &mut Graph<K, G, R>) -> Block<K> {
     Block {
@@ -494,7 +494,7 @@ impl<G: GroupHelper, R: RegisterHelper<G>, K: KindHelper<G, R> > Block<K> {
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > Instruction<K, G> {
   /// Create instruction without output interval
@@ -537,7 +537,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
+impl<G: GroupHelper<R>, R: RegisterHelper<G> > Interval<G, R> {
   /// Create new virtual interval
   pub fn new<K: KindHelper<G, R> >(graph: &mut Graph<K, G, R>,
                                    group: G) -> IntervalId {
@@ -636,7 +636,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > KindHelper<G, R> for InstrKind<K, G> {
   /// Return true if instruction is clobbering registers
@@ -698,7 +698,7 @@ impl LiveRange {
   }
 }
 
-impl<G: GroupHelper, R: RegisterHelper<G> > Value<G, R> {
+impl<G: GroupHelper<R>, R: RegisterHelper<G> > Value<G, R> {
   pub fn is_virtual(&self) -> bool {
     match self {
       &VirtualVal(_) => true,
@@ -715,7 +715,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Value<G, R> {
   }
 }
 
-impl<G: GroupHelper, R: RegisterHelper<G> > UseKind<G, R> {
+impl<G: GroupHelper<R>, R: RegisterHelper<G> > UseKind<G, R> {
   pub fn is_fixed(&self) -> bool {
     match self {
       &UseFixed(_) => true,

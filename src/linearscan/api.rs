@@ -6,7 +6,7 @@ pub use linearscan::graph::{Graph,
                             UseKind, UseAny, UseRegister, UseFixed,
                             BlockId, InstrId, StackId,
                             Value, RegisterVal, StackVal};
-pub use linearscan::allocator::{Allocator, Config};
+pub use linearscan::allocator::{Allocator};
 pub use linearscan::generator::{Generator, GeneratorFunctions};
 
 struct BlockBuilder<'self, K, G, R> {
@@ -14,8 +14,10 @@ struct BlockBuilder<'self, K, G, R> {
   block: BlockId
 }
 
-pub trait GroupHelper: Clone+Eq {
+pub trait GroupHelper<Register>: Clone+Eq {
   fn any() -> Self;
+  fn groups() -> ~[Self];
+  fn registers(&self) -> ~[Register];
   fn to_uint(&self) -> uint;
   fn from_uint(i: uint) -> Self;
 }
@@ -26,14 +28,14 @@ pub trait RegisterHelper<Group>: Clone+Eq {
   fn from_uint(g: &Group, i: uint) -> Self;
 }
 
-pub trait KindHelper<G: GroupHelper, R: RegisterHelper<G> >: Clone {
+pub trait KindHelper<G: GroupHelper<R>, R: RegisterHelper<G> >: Clone {
   fn clobbers(&self, group: &G) -> bool;
   fn temporary(&self) -> ~[G];
   fn use_kind(&self, i: uint) -> UseKind<G, R>;
   fn result_kind(&self) -> Option<UseKind<G, R> >;
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > Graph<K, G, R> {
   /// Create empty block
@@ -88,7 +90,7 @@ impl<G: GroupHelper,
 }
 
 impl<'self,
-     G: GroupHelper,
+     G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > BlockBuilder<'self, K, G, R> {
   /// add instruction to block

@@ -10,11 +10,6 @@ use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 use linearscan::gap::GapResolver;
 
-#[deriving(Clone)]
-pub struct Config {
-  register_groups: ~[uint]
-}
-
 pub struct AllocatorResult {
   spill_count: ~[uint]
 }
@@ -24,7 +19,6 @@ struct GroupResult {
 }
 
 struct AllocatorState<G, R> {
-  config: Config,
   group: ~G,
   register_count: uint,
   spill_count: uint,
@@ -39,7 +33,7 @@ pub trait Allocator {
   pub fn prepare(&mut self);
 
   // Allocate registers
-  pub fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str>;
+  pub fn allocate(&mut self) -> Result<AllocatorResult, ~str>;
 }
 
 enum SplitConf {
@@ -47,11 +41,9 @@ enum SplitConf {
   At(InstrId)
 }
 
-trait AllocatorHelper<G: GroupHelper, R: RegisterHelper<G> > {
+trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
   // Walk unhandled intervals in the order of increasing starting point
-  fn walk_intervals(&mut self,
-                    group: G,
-                    config: Config) -> Result<GroupResult, ~str>;
+  fn walk_intervals(&mut self, group: &G) -> Result<GroupResult, ~str>;
   // Try allocating free register
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
@@ -65,8 +57,7 @@ trait AllocatorHelper<G: GroupHelper, R: RegisterHelper<G> > {
   fn resolve_data_flow(&mut self, list: &[BlockId]);
 
   // Build live ranges for each interval
-  fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
-      -> Result<(), ~str>;
+  fn build_ranges(&mut self, blocks: &[BlockId]) -> Result<(), ~str>;
 
   // Split intervals with fixed uses
   fn split_fixed(&mut self);
@@ -109,7 +100,7 @@ trait AllocatorHelper<G: GroupHelper, R: RegisterHelper<G> > {
   fn verify(&self);
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > Allocator for Graph<K, G, R> {
   fn prepare(&mut self) {
@@ -126,33 +117,33 @@ impl<G: GroupHelper,
     self.prepared = true;
   }
 
-  fn allocate(&mut self, config: Config) -> Result<AllocatorResult, ~str> {
+  fn allocate(&mut self) -> Result<AllocatorResult, ~str> {
     self.prepare();
 
     // Create physical fixed intervals
-    for config.register_groups.eachi() |group_id, &count| {
-      self.physical.insert(group_id, ~SmallIntMap::new());
-      for uint::range(0, count) |reg| {
-        let group = GroupHelper::from_uint::<G>(group_id);
+    let groups: ~[G] = GroupHelper::groups();
+    for groups.each() |group| {
+      self.physical.insert(group.to_uint(), ~SmallIntMap::new());
+      let regs = group.registers();
+      for regs.each() |reg| {
         let interval = Interval::new::<G, R, K>(self, group.clone());
-        self.get_mut_interval(&interval).value =
-            RegisterVal(RegisterHelper::from_uint(&group, reg));
+        self.get_mut_interval(&interval).value = RegisterVal(reg.clone());
         self.get_mut_interval(&interval).fixed = true;
-        self.physical.find_mut(&group_id).unwrap().insert(reg, interval);
+        self.physical.find_mut(&group.to_uint()).unwrap().insert(reg.to_uint(),
+                                                                 interval);
       }
     }
 
     let list = self.get_block_list();
 
     // Create live ranges
-    match self.build_ranges(list, config.clone()) {
+    match self.build_ranges(list) {
       Ok(_) => {
         let mut results = ~[];
         // In each register group
-        for config.register_groups.eachi() |group, _| {
+        for groups.each() |group| {
           // Walk intervals!
-          match self.walk_intervals(GroupHelper::from_uint(group),
-                                    config.clone()) {
+          match self.walk_intervals(group) {
             Ok(res) => {
               results.push(res);
             },
@@ -181,16 +172,14 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > AllocatorHelper<G, R> for Graph<K, G, R> {
   fn walk_intervals(&mut self,
-                    group: G,
-                    config: Config) -> Result<GroupResult, ~str> {
+                    group: &G) -> Result<GroupResult, ~str> {
     // Initialize allocator state
-    let reg_count = config.register_groups[group.to_uint()];
+    let reg_count = group.registers().len();
     let mut state = ~AllocatorState {
-      config: config,
       group: ~group.clone(),
       register_count: reg_count,
       spill_count: 0,
@@ -650,7 +639,7 @@ impl<G: GroupHelper,
     }
   }
 
-  fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
+  fn build_ranges(&mut self, blocks: &[BlockId])
       -> Result<(), ~str> {
     let physical = copy self.physical;
     for blocks.rev_iter().advance |block_id| {
@@ -671,10 +660,14 @@ impl<G: GroupHelper,
         let instr = self.get_instr(&instr_id).clone();
 
         // Call instructions should swap out all used registers into stack slots
-        for config.register_groups.eachi() |group, &count| {
-          if instr.kind.clobbers(&GroupHelper::from_uint(group)) {
-            for uint::range(0, count) |reg| {
-              self.get_mut_interval(physical.get(&group).get(&reg))
+        let groups: ~[G] = GroupHelper::groups();
+        for groups.each() |group| {
+          self.physical.insert(group.to_uint(), ~SmallIntMap::new());
+          if instr.kind.clobbers(group) {
+            let regs = group.registers();
+            for regs.each() |reg| {
+              self.get_mut_interval(physical.get(&group.to_uint())
+                  .get(&reg.to_uint()))
                   .add_range(instr_id, instr_id.next());
             }
           }
@@ -793,7 +786,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper, R: RegisterHelper<G> > AllocatorState<G, R> {
+impl<G: GroupHelper<R>, R: RegisterHelper<G> > AllocatorState<G, R> {
   fn get_spill(&mut self) -> Value<G, R> {
     return if self.spills.len() > 0 {
       self.spills.shift()

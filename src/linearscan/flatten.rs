@@ -27,7 +27,7 @@ trait FlattenHelper {
   fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > FlattenHelper for Graph<K, G, R> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
@@ -228,7 +228,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > Flatten for Graph<K, G, R> {
   fn flatten(&mut self) {

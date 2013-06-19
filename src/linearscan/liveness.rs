@@ -14,7 +14,7 @@ trait LivenessHelper {
   fn build_global(&mut self, blocks: &[BlockId]);
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > Liveness for Graph<K, G, R> {
   fn liveness_analysis(&mut self) {
@@ -24,7 +24,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > LivenessHelper for Graph<K, G, R> {
   fn build_local(&mut self, blocks: &[BlockId]) {

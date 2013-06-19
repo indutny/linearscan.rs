@@ -33,8 +33,17 @@ pub enum Register {
   xmm1, xmm2, xmm3, xmm4
 }
 
-impl GroupHelper for Group {
+impl GroupHelper<Register> for Group {
   fn any() -> Group { Normal }
+  fn groups() -> ~[Group] {
+    ~[Normal, Double]
+  }
+  fn registers(&self) -> ~[Register] {
+    match *self {
+      Normal => ~[rax, rbx, rcx, rdx],
+      Double => ~[xmm1, xmm2, xmm3, xmm4]
+    }
+  }
   fn to_uint(&self) -> uint { *self as uint }
   fn from_uint(i: uint) -> Group {
     match i {
@@ -203,12 +212,7 @@ pub fn run_test(expected: Either<uint, float>,
 
   body(&mut *g);
 
-  g.allocate(Config {
-    register_groups: ~[
-      4, // normal registers
-      4  // double registers
-    ]
-  }).get();
+  g.allocate().get();
 
   let mut emu = Emulator::new();
   let got = emu.run(g);

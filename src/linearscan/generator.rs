@@ -6,7 +6,7 @@ pub trait Generator<K, G> {
   fn generate(&self, g: &mut G);
 }
 
-pub trait GeneratorFunctions<K, G: GroupHelper, R: RegisterHelper<G> > {
+pub trait GeneratorFunctions<K, G: GroupHelper<R>, R: RegisterHelper<G> > {
   /// Function prologue (stack initialization, etc)
   fn prelude(&mut self);
 
@@ -40,7 +40,7 @@ pub trait GeneratorHelper<K, GF> {
   fn generate_gap(&self, g: &mut GF, id: &InstrId);
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R>,
      GF: GeneratorFunctions<K, G, R> > Generator<K, GF>
@@ -122,7 +122,7 @@ impl<G: GroupHelper,
   }
 }
 
-impl<G: GroupHelper,
+impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R>,
      GF: GeneratorFunctions<K, G, R> > GeneratorHelper<K, GF>

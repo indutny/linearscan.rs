@@ -12,7 +12,7 @@ trait JsonHelper {
   fn get_instructions(&self) -> Json;
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr,
      K: KindHelper<G, R>+ToStr> ToJson for Block<K> {
   fn to_json(&self) -> Json {
@@ -31,7 +31,7 @@ impl<G: GroupHelper+ToStr,
   }
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr,
      K: KindHelper<G, R>+ToStr> ToJson for Instruction<K, G> {
   fn to_json(&self) -> Json {
@@ -79,7 +79,7 @@ impl ToJson for GapState {
   }
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr> ToJson for Interval<G, R> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
@@ -111,7 +111,7 @@ impl ToJson for LiveRange {
   }
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr> ToJson for Use<G, R> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
@@ -133,7 +133,7 @@ impl<G: GroupHelper+ToStr,
   }
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr> ToJson for Value<G, R> {
   fn to_json(&self) -> Json {
     return String(match self {
@@ -144,7 +144,7 @@ impl<G: GroupHelper+ToStr,
   }
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr,
      K: KindHelper<G, R>+ToStr> JsonHelper for Graph<K, G, R> {
   fn get_blocks(&self) -> Json {
@@ -196,7 +196,7 @@ impl<G: GroupHelper+ToStr,
   }
 }
 
-impl<G: GroupHelper+ToStr,
+impl<G: GroupHelper<R>+ToStr,
      R: RegisterHelper<G>+ToStr,
      K: KindHelper<G, R>+ToStr> ToJson for Graph<K, G, R> {
   fn to_json(&self) -> Json {
