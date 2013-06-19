@@ -1,9 +1,9 @@
 // Private imports
-use linearscan::graph::{Block, Instruction, User, Phi, ToPhi};
+use linearscan::graph::{Block, Instruction, User, Phi, ToPhi,
+                        UseAny, UseRegister, UseFixed};
 
 // Public API
-pub use linearscan::graph::{Graph,
-                            UseKind, UseAny, UseRegister, UseFixed,
+pub use linearscan::graph::{Graph, UseKind,
                             BlockId, InstrId, StackId,
                             Value, RegisterVal, StackVal};
 pub use linearscan::allocator::{Allocator};
@@ -28,11 +28,29 @@ pub trait RegisterHelper<Group>: Clone+Eq {
   fn from_uint(g: &Group, i: uint) -> Self;
 }
 
+pub trait GroupAutoHelper<Register> {
+  fn use_any(&self) -> UseKind<Self, Register>;
+  fn use_reg(&self) -> UseKind<Self, Register>;
+}
+
+pub trait RegisterAutoHelper<Group> {
+  fn use_fixed(&self) -> UseKind<Group, Self>;
+}
+
 pub trait KindHelper<G: GroupHelper<R>, R: RegisterHelper<G> >: Clone {
   fn clobbers(&self, group: &G) -> bool;
   fn temporary(&self) -> ~[G];
   fn use_kind(&self, i: uint) -> UseKind<G, R>;
   fn result_kind(&self) -> Option<UseKind<G, R> >;
+}
+
+impl<G: GroupHelper<R>, R: RegisterHelper<G> > GroupAutoHelper<R> for G {
+  fn use_any(&self) -> UseKind<G, R> { UseAny(self.clone()) }
+  fn use_reg(&self) -> UseKind<G, R> { UseRegister(self.clone()) }
+}
+
+impl<G: GroupHelper<R>, R: RegisterHelper<G> > RegisterAutoHelper<G> for R {
+  fn use_fixed(&self) -> UseKind<G, R> { UseFixed(self.clone()) }
 }
 
 impl<G: GroupHelper<R>,

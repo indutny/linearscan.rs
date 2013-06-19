@@ -519,6 +519,9 @@ impl<G: GroupHelper<R>,
   }
 
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState<G, R>) {
+    // TODO(indutny) do sorted inserts and don't call this on every insertion,
+    // it is really expensive!
+
     // Sort intervals in the order of increasing start position
     do quick_sort(state.unhandled) |left, right| {
       let lstart = self.get_interval(left).start();

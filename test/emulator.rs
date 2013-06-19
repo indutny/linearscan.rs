@@ -98,18 +98,18 @@ impl KindHelper<Group, Register> for Kind {
 
   fn use_kind(&self, i: uint) -> UseKind<Group, Register> {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(rcx),
-      &JustUse => UseFixed(rbx),
+      &BranchIfBigger if i == 0 => rcx.use_fixed(),
+      &JustUse => rbx.use_fixed(),
       &FixedUse => {
         let r: Register = RegisterHelper::from_uint(&Normal, i);
-        UseFixed(r)
+        r.use_fixed()
       },
-      &Print => UseFixed(rdx),
-      &Return => UseFixed(rax),
-      &ReturnDouble => UseFixed(xmm1),
-      &DoubleSum => UseRegister(Double),
-      &ToDouble => UseRegister(Normal),
-      _ => UseAny(Normal)
+      &Print => rdx.use_fixed(),
+      &Return => rax.use_fixed(),
+      &ReturnDouble => xmm1.use_fixed(),
+      &DoubleSum => Double.use_reg(),
+      &ToDouble => Normal.use_reg(),
+      _ => Normal.use_any()
     }
   }
 
@@ -121,10 +121,10 @@ impl KindHelper<Group, Register> for Kind {
       &JustUse => None,
       &FixedUse => None,
       &Nop => None,
-      &DoubleNumber(_) => Some(UseAny(Double)),
-      &DoubleSum => Some(UseRegister(Double)),
-      &ToDouble => Some(UseRegister(Double)),
-      _ => Some(UseRegister(Normal))
+      &DoubleNumber(_) => Some(Double.use_any()),
+      &DoubleSum => Some(Double.use_reg()),
+      &ToDouble => Some(Double.use_reg()),
+      _ => Some(Normal.use_reg())
     }
   }
 }
