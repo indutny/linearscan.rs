@@ -22,7 +22,7 @@ trait GapResolverHelper {
               result: &mut ~[GapAction]) -> bool;
 }
 
-impl<K: KindHelper+Copy> GapResolver for Graph<K> {
+impl<K: KindHelper+Clone> GapResolver for Graph<K> {
   fn resolve_gaps(&mut self) {
     let mut keys = ~[];
     for self.gaps.each_key() |id| {
@@ -37,7 +37,7 @@ impl<K: KindHelper+Copy> GapResolver for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy> GapResolverHelper for Graph<K> {
+impl<K: KindHelper+Clone> GapResolverHelper for Graph<K> {
   fn resolve_gap(&mut self, id: &InstrId) -> ~GapState {
     let state = self.gaps.pop(&id.to_uint()).unwrap();
     let mut status = vec::from_elem(state.actions.len(), ToMove);

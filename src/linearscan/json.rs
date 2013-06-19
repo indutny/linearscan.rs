@@ -12,7 +12,7 @@ trait JsonHelper {
   fn get_instructions(&self) -> Json;
 }
 
-impl<K: KindHelper+Copy+ToStr> ToJson for Block<K> {
+impl<K: KindHelper+Clone+ToStr> ToJson for Block<K> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -29,7 +29,7 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Block<K> {
   }
 }
 
-impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
+impl<K: KindHelper+Clone+ToStr> ToJson for Instruction<K> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -137,7 +137,7 @@ impl ToJson for Value {
   }
 }
 
-impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
+impl<K: KindHelper+Clone+ToStr> JsonHelper for Graph<K> {
   fn get_blocks(&self) -> Json {
     let mut result = ~[];
 
@@ -187,7 +187,7 @@ impl<K: KindHelper+Copy+ToStr> JsonHelper for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy+ToStr> ToJson for Graph<K> {
+impl<K: KindHelper+Clone+ToStr> ToJson for Graph<K> {
   fn to_json(&self) -> Json {
     let mut result = ~HashMap::new();
 

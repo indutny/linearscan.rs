@@ -26,7 +26,7 @@ trait FlattenHelper {
   fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
 }
 
-impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
+impl<K: KindHelper+Clone> FlattenHelper for Graph<K> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
     let mut queue = ~[self.root.expect("Root block")];
     let mut visited = ~BitvSet::new();
@@ -225,7 +225,7 @@ impl<K: KindHelper+Copy> FlattenHelper for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy> Flatten for Graph<K> {
+impl<K: KindHelper+Clone> Flatten for Graph<K> {
   fn flatten(&mut self) {
     self.flatten_assign_indexes();
 

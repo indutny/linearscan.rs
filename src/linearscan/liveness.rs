@@ -13,7 +13,7 @@ trait LivenessHelper {
   fn build_global(&mut self, blocks: &[BlockId]);
 }
 
-impl<K: KindHelper+Copy> Liveness for Graph<K> {
+impl<K: KindHelper+Clone> Liveness for Graph<K> {
   fn liveness_analysis(&mut self) {
     let blocks = self.get_block_list();
     self.build_local(blocks);
@@ -21,7 +21,7 @@ impl<K: KindHelper+Copy> Liveness for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy> LivenessHelper for Graph<K> {
+impl<K: KindHelper+Clone> LivenessHelper for Graph<K> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
       let instructions = copy self.get_block(block).instructions;

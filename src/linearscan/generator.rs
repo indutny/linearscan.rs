@@ -39,7 +39,7 @@ pub trait GeneratorHelper<K, G> {
   fn generate_gap(&self, g: &mut G, id: &InstrId);
 }
 
-impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
+impl<K: KindHelper+Clone, G: GeneratorFunctions<K> > Generator<K, G>
     for Graph<K> {
   fn generate(&self, g: &mut G) {
     g.prelude();
@@ -118,7 +118,7 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
   }
 }
 
-impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > GeneratorHelper<K, G>
+impl<K: KindHelper+Clone, G: GeneratorFunctions<K> > GeneratorHelper<K, G>
     for Graph<K> {
   fn generate_gap(&self, g: &mut G, id: &InstrId) {
     match self.gaps.find(&id.to_uint()) {

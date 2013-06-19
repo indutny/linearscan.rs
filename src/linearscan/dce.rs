@@ -11,7 +11,7 @@ pub trait DCEKindHelper {
   fn has_sideeffects(&self) -> bool;
 }
 
-impl<K: KindHelper+DCEKindHelper+Copy> DCE<K> for Graph<K> {
+impl<K: KindHelper+DCEKindHelper+Clone> DCE<K> for Graph<K> {
   fn eliminate_dead_code(&mut self) {
     // Get list of alive instructions
     let mut alive = ~BitvSet::new();
@@ -49,7 +49,7 @@ impl<K: KindHelper+DCEKindHelper+Copy> DCE<K> for Graph<K> {
   }
 }
 
-impl<K: DCEKindHelper+Copy> DCEKindHelper for InstrKind<K> {
+impl<K: DCEKindHelper+Clone> DCEKindHelper for InstrKind<K> {
   fn has_sideeffects(&self) -> bool {
     match self {
       &Phi(_) => false,

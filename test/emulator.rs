@@ -1,7 +1,7 @@
 use linearscan::*;
 use extra::smallintmap::SmallIntMap;
 
-#[deriving(Eq, ToStr)]
+#[deriving(Eq, ToStr, Clone)]
 pub enum Kind {
   Increment,
   Sum,
@@ -152,7 +152,7 @@ impl GeneratorFunctions<Kind> for Emulator {
 }
 
 pub fn run_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
-  let mut g = ~Graph::new::<Kind>();
+  let mut g = ~Graph::new();
 
   body(&mut *g);
 

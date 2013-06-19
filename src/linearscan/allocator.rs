@@ -107,7 +107,7 @@ trait AllocatorHelper {
   fn verify(&self);
 }
 
-impl<K: KindHelper+Copy> Allocator for Graph<K> {
+impl<K: KindHelper+Clone> Allocator for Graph<K> {
   fn prepare(&mut self) {
     if self.prepared {
       return;
@@ -175,7 +175,7 @@ impl<K: KindHelper+Copy> Allocator for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
+impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
   fn walk_intervals(&mut self,
                     group: GroupId,
                     config: Config) -> Result<GroupResult, ~str> {
@@ -660,7 +660,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
       }
 
       for instructions.rev_iter().advance |&instr_id| {
-        let instr = copy *self.get_instr(&instr_id);
+        let instr = self.get_instr(&instr_id).clone();
 
         // Call instructions should swap out all used registers into stack slots
         for config.register_groups.eachi() |group, &count| {
