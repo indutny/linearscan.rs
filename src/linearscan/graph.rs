@@ -83,19 +83,20 @@ pub struct Interval<G, R> {
   fixed: bool
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum Value<G, R> {
   VirtualVal(G),
   RegisterVal(G, R),
   StackVal(G, StackId)
 }
 
+#[deriving(Clone)]
 pub struct Use<G, R> {
   kind: UseKind<G, R>,
   pos: InstrId
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum UseKind<G, R> {
   UseAny(G),
   UseRegister(G),
@@ -238,7 +239,7 @@ impl<G: GroupHelper,
 
   /// Find optimal split position between two instructions
   pub fn optimal_split_pos(&self,
-                           group: G,
+                           group: &G,
                            start: InstrId,
                            end: InstrId) -> InstrId {
     // Fast and unfortunate case
@@ -277,9 +278,9 @@ impl<G: GroupHelper,
 
     // Split could be either at gap or at call
     let group = self.get_interval(id).value.group();
-    assert!(self.is_gap(&pos) || self.clobbers(group, &pos));
+    assert!(self.is_gap(&pos) || self.clobbers(&group, &pos));
 
-    let child = Interval::new(self, group);
+    let child = Interval::new(self, group.clone());
     let parent = match self.get_interval(id).parent {
       Some(parent) => parent,
       None => *id
@@ -297,7 +298,7 @@ impl<G: GroupHelper,
     }
 
     // Insert movement
-    let split_at_call = self.clobbers(group, &pos);
+    let split_at_call = self.clobbers(&group, &pos);
     if split_at_call || !self.block_boundary(pos) {
       self.get_mut_gap(&pos).add_move(&split_parent, &child);
     }
@@ -335,14 +336,16 @@ impl<G: GroupHelper,
 
     // Move out uses
     let mut child_uses =  ~[];
-    let split_on_call = self.get_instr(&pos).kind.clobbers(group);
-    let parent_uses =
-        do self.get_interval(&split_parent).uses.filter_mapped |u| {
+    let split_on_call = self.get_instr(&pos).kind.clobbers(&group);
+
+    // XXX: Wait for rust bug to be fixed and use filter_mapped
+    let mut parent_uses = self.get_interval(&split_parent).uses.clone();
+    do parent_uses.retain |u| {
       if split_on_call && u.pos <= pos || !split_on_call && u.pos < pos {
-        Some(*u)
+        true
       } else {
-        child_uses.push(*u);
-        None
+        child_uses.push(u.clone());
+        false
       }
     };
     self.get_mut_interval(&child).uses = child_uses;
@@ -413,7 +416,7 @@ impl<G: GroupHelper,
                    pos: InstrId) -> Option<Value<G, R> > {
     let child = self.child_with_use_at(i, pos);
     match child {
-      Some(child) => Some(self.get_interval(&child).value),
+      Some(child) => Some(self.get_interval(&child).value.clone()),
       None => None
     }
   }
@@ -428,7 +431,7 @@ impl<G: GroupHelper,
 
   /// Return true if instruction at specified position contains
   /// register-clobbering call.
-  pub fn clobbers(&self, group: G, pos: &InstrId) -> bool {
+  pub fn clobbers(&self, group: &G, pos: &InstrId) -> bool {
     return self.get_instr(pos).kind.clobbers(group);
   }
 
@@ -501,7 +504,7 @@ impl<G: GroupHelper,
 
     let mut temporary = ~[];
     for kind.temporary().each() |group| {
-      temporary.push(Interval::new(graph, *group));
+      temporary.push(Interval::new(graph, group.clone()));
     }
 
     let r = Instruction {
@@ -604,7 +607,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   pub fn next_fixed_use(&self, after: InstrId) -> Option<Use<G, R> > {
     for self.uses.each() |u| {
       match u.kind {
-        UseFixed(_, _) if u.pos >= after => { return Some(*u); },
+        UseFixed(_, _) if u.pos >= after => { return Some(u.clone()); },
         _ => ()
       }
     };
@@ -615,7 +618,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   pub fn next_use(&self, after: InstrId) -> Option<Use<G, R> > {
     for self.uses.each() |u| {
       if u.pos >= after && !u.kind.is_any() {
-        return Some(*u);
+        return Some(u.clone());
       }
     };
     return None;
@@ -625,7 +628,7 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   pub fn last_use(&self, before: InstrId) -> Option<Use<G, R> > {
     for self.uses.rev_iter().advance |u| {
       if u.pos <= before && !u.kind.is_any() {
-        return Some(*u);
+        return Some(u.clone());
       }
     };
     return None;
@@ -636,7 +639,7 @@ impl<G: GroupHelper,
      R: RegisterHelper<G>,
      K: KindHelper<G, R>+Clone> KindHelper<G, R> for InstrKind<K, G> {
   /// Return true if instruction is clobbering registers
-  pub fn clobbers(&self, group: G) -> bool {
+  pub fn clobbers(&self, group: &G) -> bool {
     match self {
       &User(ref k) => k.clobbers(group),
       &Gap => false,
@@ -661,8 +664,8 @@ impl<G: GroupHelper,
       &User(ref k) => k.use_kind(i),
       // note: group is not important for gap
       &Gap => UseAny(GroupHelper::any()),
-      &Phi(g) => UseAny(g),
-      &ToPhi(g) => UseAny(g)
+      &Phi(ref g) => UseAny(g.clone()),
+      &ToPhi(ref g) => UseAny(g.clone())
     }
   }
 
@@ -671,8 +674,8 @@ impl<G: GroupHelper,
     match self {
       &User(ref k) => k.result_kind(),
       &Gap => None,
-      &Phi(g) => Some(UseAny(g)),
-      &ToPhi(g) => Some(UseAny(g))
+      &Phi(ref g) => Some(UseAny(g.clone())),
+      &ToPhi(ref g) => Some(UseAny(g.clone()))
     }
   }
 }
@@ -704,9 +707,9 @@ impl<G: GroupHelper, R: RegisterHelper<G> > Value<G, R> {
 
   pub fn group(&self) -> G {
     match self {
-      &VirtualVal(g) => g,
-      &RegisterVal(g, _) => g,
-      &StackVal(g, _) => g
+      &VirtualVal(ref g) => g.clone(),
+      &RegisterVal(ref g, _) => g.clone(),
+      &StackVal(ref g, _) => g.clone()
     }
   }
 }
@@ -728,9 +731,9 @@ impl<G: GroupHelper, R: RegisterHelper<G> > UseKind<G, R> {
 
   pub fn group(&self) -> G {
     match self {
-      &UseRegister(g) => g,
-      &UseAny(g) => g,
-      &UseFixed(g, _) => g
+      &UseRegister(ref g) => g.clone(),
+      &UseAny(ref g) => g.clone(),
+      &UseFixed(ref g, _) => g.clone()
     }
   }
 }

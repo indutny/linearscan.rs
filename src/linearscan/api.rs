@@ -23,11 +23,11 @@ pub trait GroupHelper: Clone+Eq {
 pub trait RegisterHelper<Group>: Clone+Eq {
   fn group(&self) -> Group;
   fn to_uint(&self) -> uint;
-  fn from_uint(g: Group, i: uint) -> Self;
+  fn from_uint(g: &Group, i: uint) -> Self;
 }
 
 pub trait KindHelper<G: GroupHelper, R: RegisterHelper<G> > {
-  fn clobbers(&self, group: G) -> bool;
+  fn clobbers(&self, group: &G) -> bool;
   fn temporary(&self) -> ~[G];
   fn use_kind(&self, i: uint) -> UseKind<G, R>;
   fn result_kind(&self) -> Option<UseKind<G, R> >;
@@ -120,7 +120,7 @@ impl<'self,
   /// add phi movement to block
   pub fn to_phi(&mut self, input: InstrId, phi: InstrId) {
     let group = match self.graph.get_instr(&phi).kind {
-      Phi(group) => group,
+      Phi(ref group) => group.clone(),
       _ => fail!("Expected Phi argument")
     };
     let out = self.graph.get_instr(&phi).output.expect("Phi output");

@@ -60,12 +60,12 @@ impl RegisterHelper<Group> for Register {
     }
   }
 
-  fn from_uint(g: Group, i: uint) -> Register {
+  fn from_uint(g: &Group, i: uint) -> Register {
     match g {
-      Normal => match i {
+      &Normal => match i {
         0 => rax, 1 => rbx, 2 => rcx, 3 => rdx, _ => fail!()
       },
-      Double => match i {
+      &Double => match i {
         0 => xmm1, 1 => xmm2, 2 => xmm3, 3 => xmm4, _ => fail!()
       }
     }
@@ -73,7 +73,7 @@ impl RegisterHelper<Group> for Register {
 }
 
 impl KindHelper<Group, Register> for Kind {
-  fn clobbers(&self, _: Group) -> bool {
+  fn clobbers(&self, _: &Group) -> bool {
     match self {
       &Print => true,
       _ => false
@@ -92,7 +92,7 @@ impl KindHelper<Group, Register> for Kind {
       &BranchIfBigger if i == 0 => UseFixed(Normal, rcx),
       &JustUse => UseFixed(Normal, rbx),
       &FixedUse => {
-        let r = RegisterHelper::from_uint::<Group, Register>(Normal, i);
+        let r: Register = RegisterHelper::from_uint(&Normal, i);
         UseFixed(Normal, r)
       },
       &Print => UseFixed(Normal, rdx),
@@ -158,15 +158,15 @@ impl GeneratorFunctions<Kind, Group, Register> for Emulator {
   }
 
   fn swap(&mut self,
-          left: Value<Group, Register>,
-          right: Value<Group, Register>) {
-    self.instructions.push(Swap(left, right));
+          left: &Value<Group, Register>,
+          right: &Value<Group, Register>) {
+    self.instructions.push(Swap(left.clone(), right.clone()));
   }
 
   fn move(&mut self,
-          from: Value<Group, Register>,
-          to: Value<Group, Register>) {
-    self.instructions.push(Move(from, to));
+          from: &Value<Group, Register>,
+          to: &Value<Group, Register>) {
+    self.instructions.push(Move(from.clone(), to.clone()));
   }
 
   fn block(&mut self, id: BlockId) {

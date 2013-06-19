@@ -16,10 +16,10 @@ pub trait GeneratorFunctions<K, G: GroupHelper, R: RegisterHelper<G> > {
   fn epilogue(&mut self);
 
   /// Swap `left` and `right` value
-  fn swap(&mut self, left: Value<G, R>, right: Value<G, R>);
+  fn swap(&mut self, left: &Value<G, R>, right: &Value<G, R>);
 
   /// Move value from `from` to `to`
-  fn move(&mut self, from: Value<G, R>, to: Value<G, R>);
+  fn move(&mut self, from: &Value<G, R>, to: &Value<G, R>);
 
   /// Block start notification, might be used to relocate labels
   fn block(&mut self, id: BlockId);
@@ -74,7 +74,7 @@ impl<G: GroupHelper,
         let output = match instr.output {
           Some(ref out) => {
             let group = instr.kind.result_kind().unwrap().group();
-            self.get_value(out, if instr.kind.clobbers(group) {
+            self.get_value(out, if instr.kind.clobbers(&group) {
               instr.id.next()
             } else {
               instr.id
@@ -94,7 +94,7 @@ impl<G: GroupHelper,
             assert!(inputs.len() == 1);
             let out = output.expect("ToPhi output");
             if out != inputs[0] {
-              g.move(inputs[0], out);
+              g.move(&inputs[0], &out);
             }
           },
           Gap => (), // handled separately
@@ -130,12 +130,12 @@ impl<G: GroupHelper,
   fn generate_gap(&self, g: &mut GF, id: &InstrId) {
     match self.gaps.find(&id.to_uint()) {
       Some(state) => for state.actions.each() |action| {
-        let from = self.get_interval(&action.from).value;
-        let to = self.get_interval(&action.to).value;
+        let from = self.get_interval(&action.from).value.clone();
+        let to = self.get_interval(&action.to).value.clone();
 
         match action.kind {
-          Swap => g.swap(from, to),
-          Move => g.move(from, to)
+          Swap => g.swap(&from, &to),
+          Move => g.move(&from, &to)
         }
       },
       None => ()

@@ -64,8 +64,8 @@ impl<G: GroupHelper,
               s: &mut [MoveStatus],
               result: &mut ~[GapAction]) -> bool {
     assert!(actions[i].kind == Move);
-    let from = self.get_interval(&actions[i].from).value;
-    let to = self.get_interval(&actions[i].to).value;
+    let from = self.get_interval(&actions[i].from).value.clone();
+    let to = self.get_interval(&actions[i].to).value.clone();
 
     // Ignore nop moves
     if from == to { return false; }
@@ -76,7 +76,7 @@ impl<G: GroupHelper,
     let mut sentinel = false;
     while j < actions.len() {
       assert!(actions[j].kind == Move);
-      let other_from = self.get_interval(&actions[j].from).value;
+      let other_from = self.get_interval(&actions[j].from).value.clone();
 
       if other_from == to {
         match s[j] {

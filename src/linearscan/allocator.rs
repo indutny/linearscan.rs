@@ -24,7 +24,7 @@ struct GroupResult {
 
 struct AllocatorState<G, R> {
   config: Config,
-  group: G,
+  group: ~G,
   register_count: uint,
   spill_count: uint,
   spills: ~[Value<G, R>],
@@ -94,14 +94,14 @@ trait AllocatorHelper<G: GroupHelper, R: RegisterHelper<G> > {
   // Iterate through all active intervals
   fn each_active<'r>(&'r self,
                      state: &'r AllocatorState<G, R>,
-                     f: &fn(i: &IntervalId, reg: R) -> bool) -> bool;
+                     f: &fn(i: &IntervalId, reg: &R) -> bool) -> bool;
 
   // Iterate through all inactive intervals that are intersecting with current
   fn each_intersecting<'r>(&'r self,
                            current: IntervalId,
                            state: &'r AllocatorState<G, R>,
                            f: &fn(i: &IntervalId,
-                                  reg: R,
+                                  reg: &R,
                                   pos: InstrId) -> bool) -> bool;
 
   // Verify allocation results
@@ -132,10 +132,10 @@ impl<G: GroupHelper,
     for config.register_groups.eachi() |group_id, &count| {
       self.physical.insert(group_id, ~SmallIntMap::new());
       for uint::range(0, count) |reg| {
-        let group = GroupHelper::from_uint(group_id);
-        let interval = Interval::new(self, group);
+        let group = GroupHelper::from_uint::<G>(group_id);
+        let interval = Interval::new::<G, R, K>(self, group.clone());
         self.get_mut_interval(&interval).value =
-            RegisterVal(group, RegisterHelper::from_uint(group, reg));
+            RegisterVal(group.clone(), RegisterHelper::from_uint(&group, reg));
         self.get_mut_interval(&interval).fixed = true;
         self.physical.find_mut(&group_id).unwrap().insert(reg, interval);
       }
@@ -190,7 +190,7 @@ impl<G: GroupHelper,
     let reg_count = config.register_groups[group.to_uint()];
     let mut state = ~AllocatorState {
       config: config,
-      group: group,
+      group: ~group.clone(),
       register_count: reg_count,
       spill_count: 0,
       spills: ~[],
@@ -201,7 +201,7 @@ impl<G: GroupHelper,
 
     // We'll work with intervals that contain any ranges
     for self.intervals.each() |_, interval| {
-      if interval.value.group() == group && interval.ranges.len() > 0 {
+      if &interval.value.group() == state.group && interval.ranges.len() > 0 {
         if interval.fixed {
           // Push all physical registers to active
           state.active.push(interval.id);
@@ -226,7 +226,7 @@ impl<G: GroupHelper,
           if position <= self.get_interval(id).end() {
             state.inactive.push(*id);
           }
-          handled.push(self.get_interval(id).value);
+          handled.push(self.get_interval(id).value.clone());
           false
         }
       };
@@ -235,7 +235,7 @@ impl<G: GroupHelper,
       do state.inactive.retain |id| {
         if self.get_interval(id).covers(position) {
           state.active.push(*id);
-          handled.push(self.get_interval(id).value);
+          handled.push(self.get_interval(id).value.clone());
           false
         } else {
           position < self.get_interval(id).end()
@@ -244,7 +244,7 @@ impl<G: GroupHelper,
 
       // Return handled spills
       for handled.each() |v| {
-        state.to_handled(*v)
+        state.to_handled(v)
       }
 
       // Skip non-virtual intervals
@@ -347,7 +347,7 @@ impl<G: GroupHelper,
         // unless we have a register use at that instruction,
         // try spilling current instead.
         match self.get_interval(&current).next_use(max_pos) {
-          Some(u) if u.pos == max_pos => {
+          Some(ref u) if u.pos == max_pos => {
             split_pos = max_pos;
           },
           _ => {
@@ -368,7 +368,8 @@ impl<G: GroupHelper,
 
     // Give current a register
     self.get_mut_interval(&current).value =
-        RegisterVal(state.group, RegisterHelper::from_uint(state.group, reg));
+        RegisterVal(*state.group.clone(),
+                    RegisterHelper::from_uint::<G, R>(state.group, reg));
 
     return true;
   }
@@ -478,7 +479,7 @@ impl<G: GroupHelper,
         } else {
           // Assign register to current
           self.get_mut_interval(&current).value =
-              RegisterVal(state.group,
+              RegisterVal(*state.group.clone(),
                           RegisterHelper::from_uint(state.group, reg));
 
           // If blocked somewhere before end by fixed interval
@@ -501,10 +502,10 @@ impl<G: GroupHelper,
 
   fn each_active<'r>(&'r self,
                      state: &'r AllocatorState<G, R>,
-                     f: &fn(i: &IntervalId, reg: R) -> bool) -> bool {
+                     f: &fn(i: &IntervalId, reg: &R) -> bool) -> bool {
     for state.active.each() |id| {
       match self.get_interval(id).value {
-        RegisterVal(_, reg) => if !f(id, reg) { break },
+        RegisterVal(_, ref reg) => if !f(id, reg) { break },
         _ => fail!("Expected register in active")
       };
     }
@@ -515,12 +516,12 @@ impl<G: GroupHelper,
                            current: IntervalId,
                            state: &'r AllocatorState<G, R>,
                            f: &fn(i: &IntervalId,
-                                  reg: R,
+                                  reg: &R,
                                   pos: InstrId) -> bool) -> bool {
     for state.inactive.each() |id| {
       match self.get_intersection(id, &current) {
         Some(pos) => match self.get_interval(id).value {
-          RegisterVal(_, reg) => if !f(id, reg, pos) { break },
+          RegisterVal(_, ref reg) => if !f(id, reg, pos) { break },
           _ => fail!("Expected register in inactive")
         },
         None => ()
@@ -542,9 +543,9 @@ impl<G: GroupHelper,
   fn get_hint(&mut self, current: IntervalId) -> Option<R> {
     match self.get_interval(&current).hint {
       Some(ref id) => match self.get_interval(id).value {
-        RegisterVal(g, r) => {
-          assert!(g == self.get_interval(&current).value.group());
-          Some(r)
+        RegisterVal(ref g, ref r) => {
+          assert!(g == &self.get_interval(&current).value.group());
+          Some(r.clone())
         },
         _ => None
       },
@@ -571,7 +572,7 @@ impl<G: GroupHelper,
                          current: IntervalId,
                          state: &'r mut AllocatorState<G, R>) {
     let reg = match self.get_interval(&current).value {
-      RegisterVal(_, r) => r,
+      RegisterVal(_, ref r) => r.clone(),
       _ => fail!("Expected register value")
     };
     let start = self.get_interval(&current).start();
@@ -579,12 +580,12 @@ impl<G: GroupHelper,
     // Filter out intersecting intervals
     let mut to_split = ~[];
     for self.each_active(state) |id, _reg| {
-      if _reg == reg {
+      if _reg == &reg {
         to_split.push(*id);
       }
     }
     for self.each_intersecting(current, state) |id, _reg, _| {
-      if _reg == reg {
+      if _reg == &reg {
         to_split.push(*id);
       }
     }
@@ -672,7 +673,7 @@ impl<G: GroupHelper,
 
         // Call instructions should swap out all used registers into stack slots
         for config.register_groups.eachi() |group, &count| {
-          if instr.kind.clobbers(GroupHelper::from_uint(group)) {
+          if instr.kind.clobbers(&GroupHelper::from_uint(group)) {
             for uint::range(0, count) |reg| {
               self.get_mut_interval(physical.get(&group).get(&reg))
                   .add_range(instr_id, instr_id.next());
@@ -685,7 +686,7 @@ impl<G: GroupHelper,
           Some(output) => {
             // Call instructions are defining their value after the call
             let group = self.get_interval(&output).value.group();
-            let pos = if instr.kind.clobbers(group) {
+            let pos = if instr.kind.clobbers(&group) {
               instr_id.next()
             } else {
               instr_id
@@ -707,7 +708,7 @@ impl<G: GroupHelper,
         // Process temporary
         for instr.temporary.each() |tmp| {
           let group = self.get_interval(tmp).value.group();
-          if instr.kind.clobbers(group) {
+          if instr.kind.clobbers(&group) {
             return Err(~"Call instruction can't have temporary registers");
           }
           self.get_mut_interval(tmp).add_range(instr_id, instr_id.next());
@@ -742,14 +743,15 @@ impl<G: GroupHelper,
     for list.each() |id| {
       let cur = *id;
 
-      let uses = do (copy self.get_interval(id).uses).filtered |u| {
+      let mut uses = self.get_interval(id).uses.clone();
+      do uses.retain |u| {
         u.kind.is_fixed()
       };
 
       let mut i = 0;
       while i < uses.len() - 1 {
         // Split between each pair of uses
-        let split_pos = self.optimal_split_pos(uses[i].kind.group(),
+        let split_pos = self.optimal_split_pos(&uses[i].kind.group(),
                                                uses[i].pos,
                                                uses[i + 1].pos);
         self.split_at(&cur, split_pos);
@@ -777,8 +779,8 @@ impl<G: GroupHelper,
               RegisterVal(_, _) => (), // ok
               _ => fail!("Register expected")
             },
-            UseFixed(_, r0) => match interval.value {
-              RegisterVal(_, r1) if r0 == r1 => (), // ok
+            UseFixed(_, ref r0) => match interval.value {
+              RegisterVal(_, ref r1) if r0 == r1 => (), // ok
               _ => fail!("Expected fixed register")
             }
           }
@@ -799,13 +801,15 @@ impl<G: GroupHelper, R: RegisterHelper<G> > AllocatorState<G, R> {
     } else {
       let slot = self.spill_count;
       self.spill_count += 1;
-      StackVal(self.group, StackId(slot))
+      StackVal(*self.group.clone(), StackId(slot))
     }
   }
 
-  fn to_handled(&mut self, value: Value<G, R>) {
+  fn to_handled(&mut self, value: &Value<G, R>) {
     match value {
-      StackVal(group, slot) => self.spills.push(StackVal(group, slot)),
+      &StackVal(ref group, slot) => {
+        self.spills.push(StackVal(group.clone(), slot))
+      },
       _ => ()
     }
   }
