@@ -512,7 +512,7 @@ impl<G: GroupHelper,
       block: BlockId(0), // NOTE: this will be overwritten soon
       kind: kind,
       output: None,
-      inputs: copy args,
+      inputs: args.clone(),
       temporary: temporary,
       added: false
     };

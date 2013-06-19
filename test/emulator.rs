@@ -131,6 +131,7 @@ pub struct Emulator {
   double_stack: ~SmallIntMap<float>
 }
 
+#[deriving(Clone)]
 enum Instruction {
   Move(Value<Group, Register>, Value<Group, Register>),
   Swap(Value<Group, Register>, Value<Group, Register>),
@@ -140,6 +141,7 @@ enum Instruction {
   Generic(GenericInstruction)
 }
 
+#[deriving(Clone)]
 struct GenericInstruction {
   kind: Kind,
   output: Option<Value<Group, Register>>,
@@ -234,7 +236,7 @@ impl Emulator {
     // Generate instructions
     graph.generate(self);
 
-    let instructions = copy self.instructions;
+    let instructions = self.instructions.clone();
     loop {
       // Execution finished
       if self.result.is_some() {
@@ -309,7 +311,7 @@ impl Emulator {
   fn exec_generic(&mut self, instr: &GenericInstruction) {
     let out = instr.output;
     let inputs = instr.inputs.map(|i| self.get(*i));
-    let tmp = copy instr.temporary;
+    let tmp = instr.temporary.clone();
 
     match instr.kind {
       Increment => self.put(out.expect("Increment out"),

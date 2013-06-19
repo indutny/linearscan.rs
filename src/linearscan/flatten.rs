@@ -151,7 +151,7 @@ impl<G: GroupHelper,
 
     // Go through blocks and map instructions
     for list.each() |block| {
-      let list = copy self.get_block(block).instructions;
+      let list = self.get_block(block).instructions.clone();
       let mut new_list = ~[];
       let start_gap = self.create_gap(block);
       new_list.push(start_gap.id);
@@ -248,7 +248,7 @@ impl<G: GroupHelper,
       list.push(cur);
 
       // Visit successors if they've no unvisited incoming forward edges
-      let successors = copy self.get_block(&cur).successors;
+      let successors = self.get_block(&cur).successors.clone();
       for successors.each() |succ_id| {
         let succ = self.get_mut_block(succ_id);
         if succ.incoming_forward_branches == 0 {

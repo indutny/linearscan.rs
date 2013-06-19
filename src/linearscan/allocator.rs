@@ -10,6 +10,7 @@ use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
 use linearscan::gap::GapResolver;
 
+#[deriving(Clone)]
 pub struct Config {
   register_groups: ~[uint]
 }
@@ -144,14 +145,14 @@ impl<G: GroupHelper,
     let list = self.get_block_list();
 
     // Create live ranges
-    match self.build_ranges(list, copy config) {
+    match self.build_ranges(list, config.clone()) {
       Ok(_) => {
         let mut results = ~[];
         // In each register group
         for config.register_groups.eachi() |group, _| {
           // Walk intervals!
           match self.walk_intervals(GroupHelper::from_uint(group),
-                                    copy config) {
+                                    config.clone()) {
             Ok(res) => {
               results.push(res);
             },
@@ -620,9 +621,9 @@ impl<G: GroupHelper,
   fn resolve_data_flow(&mut self, list: &[BlockId]) {
     for list.each() |block_id| {
       let block_end = self.get_block(block_id).end().prev();
-      let successors = copy self.get_block(block_id).successors;
+      let successors = self.get_block(block_id).successors.clone();
       for successors.each() |succ_id| {
-        let succ_start = copy self.get_block(succ_id).start();
+        let succ_start = self.get_block(succ_id).start().clone();
         let live_in = copy self.get_block(succ_id).live_in;
 
         for live_in.each() |&interval| {
@@ -653,7 +654,7 @@ impl<G: GroupHelper,
       -> Result<(), ~str> {
     let physical = copy self.physical;
     for blocks.rev_iter().advance |block_id| {
-      let instructions = copy self.get_block(block_id).instructions;
+      let instructions = self.get_block(block_id).instructions.clone();
       let live_out = copy self.get_block(block_id).live_out;
       let block_from = self.get_block(block_id).start();
       let block_to = self.get_block(block_id).end();

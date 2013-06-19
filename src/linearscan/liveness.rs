@@ -29,11 +29,11 @@ impl<G: GroupHelper,
      K: KindHelper<G, R> > LivenessHelper for Graph<K, G, R> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
-      let instructions = copy self.get_block(block).instructions;
+      let instructions = self.get_block(block).instructions.clone();
 
       for instructions.each() |instr| {
         let output = self.get_instr(instr).output;
-        let inputs = copy self.get_instr(instr).inputs;
+        let inputs = self.get_instr(instr).inputs.clone();
 
         match output {
           Some(output) => self.get_mut_block(block).live_kill
@@ -57,7 +57,7 @@ impl<G: GroupHelper,
       change = false;
 
       for blocks.rev_iter().advance |block| {
-        let successors = copy self.get_block(block).successors;
+        let successors = self.get_block(block).successors.clone();
 
         let mut tmp = ~BitvSet::new();
         for successors.each() |succ| {
