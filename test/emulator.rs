@@ -20,39 +20,91 @@ pub enum Kind {
 }
 
 // Register groups
-pub static Normal: uint = 0;
-pub static Double: uint = 1;
+#[deriving(Clone, Eq, ToStr)]
+pub enum Group {
+  Normal,
+  Double
+}
 
-impl KindHelper for Kind {
-  fn clobbers(&self, _: GroupId) -> bool {
+// Registers
+#[deriving(Clone, Eq, ToStr)]
+pub enum Register {
+  rax, rbx, rcx, rdx,
+  xmm1, xmm2, xmm3, xmm4
+}
+
+impl GroupHelper for Group {
+  fn any() -> Group { Normal }
+  fn to_uint(&self) -> uint { *self as uint }
+  fn from_uint(i: uint) -> Group {
+    match i {
+      0 => Normal,
+      1 => Double,
+      _ => fail!()
+    }
+  }
+}
+
+impl RegisterHelper<Group> for Register {
+  fn group(&self) -> Group {
+    match *self {
+      rax => Normal, rbx => Normal, rcx => Normal, rdx => Normal,
+      xmm1 => Double, xmm2 => Double, xmm3 => Double, xmm4 => Double
+    }
+  }
+
+  fn to_uint(&self) -> uint {
+    match self.group() {
+      Normal => *self as uint,
+      Double => *self as uint - 4
+    }
+  }
+
+  fn from_uint(g: Group, i: uint) -> Register {
+    match g {
+      Normal => match i {
+        0 => rax, 1 => rbx, 2 => rcx, 3 => rdx, _ => fail!()
+      },
+      Double => match i {
+        0 => xmm1, 1 => xmm2, 2 => xmm3, 3 => xmm4, _ => fail!()
+      }
+    }
+  }
+}
+
+impl KindHelper<Group, Register> for Kind {
+  fn clobbers(&self, _: Group) -> bool {
     match self {
       &Print => true,
       _ => false
     }
   }
 
-  fn temporary(&self) -> ~[GroupId] {
+  fn temporary(&self) -> ~[Group] {
     match self {
-      &BranchIfBigger => ~[GroupId(Normal)],
+      &BranchIfBigger => ~[Normal],
       _ => ~[]
     }
   }
 
-  fn use_kind(&self, i: uint) -> UseKind {
+  fn use_kind(&self, i: uint) -> UseKind<Group, Register> {
     match self {
-      &BranchIfBigger if i == 0 => UseFixed(GroupId(Normal), RegisterId(2)),
-      &JustUse => UseFixed(GroupId(Normal), RegisterId(1)),
-      &FixedUse => UseFixed(GroupId(Normal), RegisterId(i)),
-      &Print => UseFixed(GroupId(Normal), RegisterId(3)),
-      &Return => UseFixed(GroupId(Normal), RegisterId(0)),
-      &ReturnDouble => UseFixed(GroupId(Double), RegisterId(0)),
-      &DoubleSum => UseRegister(GroupId(Double)),
-      &ToDouble => UseRegister(GroupId(Normal)),
-      _ => UseAny(GroupId(Normal))
+      &BranchIfBigger if i == 0 => UseFixed(Normal, rcx),
+      &JustUse => UseFixed(Normal, rbx),
+      &FixedUse => {
+        let r = RegisterHelper::from_uint::<Group, Register>(Normal, i);
+        UseFixed(Normal, r)
+      },
+      &Print => UseFixed(Normal, rdx),
+      &Return => UseFixed(Normal, rax),
+      &ReturnDouble => UseFixed(Double, xmm1),
+      &DoubleSum => UseRegister(Double),
+      &ToDouble => UseRegister(Normal),
+      _ => UseAny(Normal)
     }
   }
 
-  fn result_kind(&self) -> Option<UseKind> {
+  fn result_kind(&self) -> Option<UseKind<Group, Register> > {
     match self {
       &Return => None,
       &ReturnDouble => None,
@@ -60,10 +112,10 @@ impl KindHelper for Kind {
       &JustUse => None,
       &FixedUse => None,
       &Nop => None,
-      &DoubleNumber(_) => Some(UseAny(GroupId(Double))),
-      &DoubleSum => Some(UseRegister(GroupId(Double))),
-      &ToDouble => Some(UseRegister(GroupId(Double))),
-      _ => Some(UseRegister(GroupId(Normal)))
+      &DoubleNumber(_) => Some(UseAny(Double)),
+      &DoubleSum => Some(UseRegister(Double)),
+      &ToDouble => Some(UseRegister(Double)),
+      _ => Some(UseRegister(Normal))
     }
   }
 }
@@ -80,8 +132,8 @@ pub struct Emulator {
 }
 
 enum Instruction {
-  Move(Value, Value),
-  Swap(Value, Value),
+  Move(Value<Group, Register>, Value<Group, Register>),
+  Swap(Value<Group, Register>, Value<Group, Register>),
   UnexpectedEnd,
   Block(BlockId),
   Goto(BlockId),
@@ -90,13 +142,13 @@ enum Instruction {
 
 struct GenericInstruction {
   kind: Kind,
-  output: Option<Value>,
-  inputs: ~[Value],
-  temporary: ~[Value],
+  output: Option<Value<Group, Register>>,
+  inputs: ~[Value<Group, Register>],
+  temporary: ~[Value<Group, Register>],
   succ: ~[BlockId]
 }
 
-impl GeneratorFunctions<Kind> for Emulator {
+impl GeneratorFunctions<Kind, Group, Register> for Emulator {
   fn prelude(&mut self) {
     // nop
   }
@@ -105,11 +157,15 @@ impl GeneratorFunctions<Kind> for Emulator {
     self.instructions.push(UnexpectedEnd);
   }
 
-  fn swap(&mut self, left: Value, right: Value) {
+  fn swap(&mut self,
+          left: Value<Group, Register>,
+          right: Value<Group, Register>) {
     self.instructions.push(Swap(left, right));
   }
 
-  fn move(&mut self, from: Value, to: Value) {
+  fn move(&mut self,
+          from: Value<Group, Register>,
+          to: Value<Group, Register>) {
     self.instructions.push(Move(from, to));
   }
 
@@ -125,9 +181,9 @@ impl GeneratorFunctions<Kind> for Emulator {
 
   fn instr(&mut self,
            kind: &Kind,
-           output: Option<Value>,
-           inputs: &[Value],
-           temporary: &[Value],
+           output: Option<Value<Group, Register>>,
+           inputs: &[Value<Group, Register>],
+           temporary: &[Value<Group, Register>],
            succ: &[BlockId]) {
     self.instructions.push(Generic(GenericInstruction {
       kind: *kind,
@@ -139,7 +195,8 @@ impl GeneratorFunctions<Kind> for Emulator {
   }
 }
 
-pub fn run_test(expected: Either<uint, float>, body: &fn(b: &mut Graph<Kind>)) {
+pub fn run_test(expected: Either<uint, float>,
+                body: &fn(b: &mut Graph<Kind, Group, Register>)) {
   let mut g = ~Graph::new();
 
   body(&mut *g);
@@ -172,7 +229,8 @@ impl Emulator {
     }
   }
 
-  fn run(&mut self, graph: &Graph<Kind>) -> Either<uint, float> {
+  fn run(&mut self,
+         graph: &Graph<Kind, Group, Register>) -> Either<uint, float> {
     // Generate instructions
     graph.generate(self);
 
@@ -208,21 +266,21 @@ impl Emulator {
     }
   }
 
-  fn get(&self, slot: Value) -> Either<uint, float> {
+  fn get(&self, slot: Value<Group, Register>) -> Either<uint, float> {
     match slot {
-      RegisterVal(GroupId(Normal), r) => {
+      RegisterVal(Normal, r) => {
         Left(*self.registers.find(&r.to_uint())
                   .expect("Defined register"))
       },
-      RegisterVal(GroupId(Double), r) => {
+      RegisterVal(Double, r) => {
         Right(*self.double_registers.find(&r.to_uint())
                    .expect("Defined double register"))
       },
-      StackVal(GroupId(Normal), s) => {
+      StackVal(Normal, s) => {
         Left(*self.stack.find(&s.to_uint())
                   .expect("Defined stack slot"))
       },
-      StackVal(GroupId(Double), s) => {
+      StackVal(Double, s) => {
         Right(*self.double_stack.find(&s.to_uint())
                    .expect("Defined double stack slot"))
       },
@@ -230,18 +288,18 @@ impl Emulator {
     }
   }
 
-  fn put(&mut self, slot: Value, value: Either<uint, float>) {
+  fn put(&mut self, slot: Value<Group, Register>, value: Either<uint, float>) {
     match slot {
-      RegisterVal(GroupId(Normal), r) => {
+      RegisterVal(Normal, r) => {
         self.registers.insert(r.to_uint(), value.unwrap_left())
       },
-      RegisterVal(GroupId(Double), r) => {
+      RegisterVal(Double, r) => {
         self.double_registers.insert(r.to_uint(), value.unwrap_right())
       },
-      StackVal(GroupId(Normal), s) => {
+      StackVal(Normal, s) => {
         self.stack.insert(s.to_uint(), value.unwrap_left())
       },
-      StackVal(GroupId(Double), s) => {
+      StackVal(Double, s) => {
         self.double_stack.insert(s.to_uint(), value.unwrap_right())
       },
       _ => fail!()

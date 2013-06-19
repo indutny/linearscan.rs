@@ -1,5 +1,6 @@
 use std::vec;
-use linearscan::graph::{Graph, KindHelper, InstrId, GapState, GapAction,
+use linearscan::*;
+use linearscan::graph::{Graph, InstrId, GapState, GapAction,
                         Move, Swap};
 
 #[deriving(Eq)]
@@ -22,7 +23,9 @@ trait GapResolverHelper {
               result: &mut ~[GapAction]) -> bool;
 }
 
-impl<K: KindHelper+Clone> GapResolver for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> GapResolver for Graph<K, G, R> {
   fn resolve_gaps(&mut self) {
     let mut keys = ~[];
     for self.gaps.each_key() |id| {
@@ -37,7 +40,9 @@ impl<K: KindHelper+Clone> GapResolver for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Clone> GapResolverHelper for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> GapResolverHelper for Graph<K, G, R> {
   fn resolve_gap(&mut self, id: &InstrId) -> ~GapState {
     let state = self.gaps.pop(&id.to_uint()).unwrap();
     let mut status = vec::from_elem(state.actions.len(), ToMove);

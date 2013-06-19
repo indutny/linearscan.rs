@@ -2,19 +2,40 @@
 use linearscan::graph::{Block, Instruction, User, Phi, ToPhi};
 
 // Public API
-pub use linearscan::graph::{Graph, KindHelper,
+pub use linearscan::graph::{Graph,
                             UseKind, UseAny, UseRegister, UseFixed,
-                            GroupId, BlockId, InstrId, RegisterId, StackId,
+                            BlockId, InstrId, StackId,
                             Value, RegisterVal, StackVal};
 pub use linearscan::allocator::{Allocator, Config};
 pub use linearscan::generator::{Generator, GeneratorFunctions};
 
-struct BlockBuilder<'self, K> {
-  graph: &'self mut Graph<K>,
+struct BlockBuilder<'self, K, G, R> {
+  graph: &'self mut Graph<K, G, R>,
   block: BlockId
 }
 
-impl<K: KindHelper+Clone> Graph<K> {
+pub trait GroupHelper: Clone+Eq {
+  fn any() -> Self;
+  fn to_uint(&self) -> uint;
+  fn from_uint(i: uint) -> Self;
+}
+
+pub trait RegisterHelper<Group>: Clone+Eq {
+  fn group(&self) -> Group;
+  fn to_uint(&self) -> uint;
+  fn from_uint(g: Group, i: uint) -> Self;
+}
+
+pub trait KindHelper<G: GroupHelper, R: RegisterHelper<G> > {
+  fn clobbers(&self, group: G) -> bool;
+  fn temporary(&self) -> ~[G];
+  fn use_kind(&self, i: uint) -> UseKind<G, R>;
+  fn result_kind(&self) -> Option<UseKind<G, R> >;
+}
+
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> Graph<K, G, R> {
   /// Create empty block
   pub fn empty_block(&mut self) -> BlockId {
     let block = ~Block::new(self);
@@ -24,7 +45,7 @@ impl<K: KindHelper+Clone> Graph<K> {
   }
 
   /// Create empty block and initialize it in the block
-  pub fn block(&mut self, body: &fn(b: &mut BlockBuilder<K>)) -> BlockId {
+  pub fn block(&mut self, body: &fn(b: &mut BlockBuilder<K, G, R>)) -> BlockId {
     let block = ~Block::new(self);
     let id = block.id;
     self.blocks.insert(id.to_uint(), block);
@@ -36,7 +57,7 @@ impl<K: KindHelper+Clone> Graph<K> {
   }
 
   /// Create phi value
-  pub fn phi(&mut self, group: GroupId) -> InstrId {
+  pub fn phi(&mut self, group: G) -> InstrId {
     let res = Instruction::new(self, Phi(group), ~[]);
     // Prevent adding phi to block
     self.get_mut_instr(&res).added = true;
@@ -47,7 +68,7 @@ impl<K: KindHelper+Clone> Graph<K> {
   /// Perform operations on block
   pub fn with_block(&mut self,
                     id: BlockId,
-                    body: &fn(b: &mut BlockBuilder<K>)) {
+                    body: &fn(b: &mut BlockBuilder<K, G, R>)) {
     let mut b = BlockBuilder {
       graph: self,
       block: id
@@ -66,7 +87,10 @@ impl<K: KindHelper+Clone> Graph<K> {
   }
 }
 
-impl<'self, K: KindHelper+Clone> BlockBuilder<'self, K> {
+impl<'self,
+     G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> BlockBuilder<'self, K, G, R> {
   /// add instruction to block
   pub fn add(&mut self, kind: K, args: ~[InstrId]) -> InstrId {
     let instr_id = self.graph.new_instr(kind, args);

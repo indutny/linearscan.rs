@@ -1,9 +1,10 @@
 use extra::sort::quick_sort;
 use extra::smallintmap::SmallIntMap;
 use std::{vec, uint};
-use linearscan::graph::{Graph, KindHelper, Interval,
-                        IntervalId, InstrId, RegisterId, StackId, BlockId,
-                        UseAny, UseRegister, UseFixed, GroupId,
+use linearscan::{KindHelper, RegisterHelper, GroupHelper};
+use linearscan::graph::{Graph, Interval,
+                        IntervalId, InstrId, StackId, BlockId,
+                        UseAny, UseRegister, UseFixed,
                         Value, RegisterVal, StackVal};
 use linearscan::flatten::Flatten;
 use linearscan::liveness::Liveness;
@@ -21,12 +22,12 @@ struct GroupResult {
   spill_count: uint
 }
 
-struct AllocatorState {
+struct AllocatorState<G, R> {
   config: Config,
-  group: GroupId,
+  group: G,
   register_count: uint,
   spill_count: uint,
-  spills: ~[Value],
+  spills: ~[Value<G, R>],
   unhandled: ~[IntervalId],
   active: ~[IntervalId],
   inactive: ~[IntervalId]
@@ -45,19 +46,19 @@ enum SplitConf {
   At(InstrId)
 }
 
-trait AllocatorHelper {
+trait AllocatorHelper<G: GroupHelper, R: RegisterHelper<G> > {
   // Walk unhandled intervals in the order of increasing starting point
   fn walk_intervals(&mut self,
-                    group: GroupId,
+                    group: G,
                     config: Config) -> Result<GroupResult, ~str>;
   // Try allocating free register
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
-                           state: &'r mut AllocatorState) -> bool;
+                           state: &'r mut AllocatorState<G, R>) -> bool;
   // Allocate blocked register and spill others, or spill interval itself
   fn allocate_blocked_reg<'r>(&'r mut self,
                               current: IntervalId,
-                              state: &'r mut AllocatorState)
+                              state: &'r mut AllocatorState<G, R>)
       -> Result<(), ~str>;
   // Add movements on block edges
   fn resolve_data_flow(&mut self, list: &[BlockId]);
@@ -74,40 +75,42 @@ trait AllocatorHelper {
   //
 
   // Sort unhandled list (after insertion)
-  fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState);
+  fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState<G, R>);
 
   // Get register hint if present
-  fn get_hint(&mut self, current: IntervalId) -> Option<RegisterId>;
+  fn get_hint(&mut self, current: IntervalId) -> Option<R>;
 
   // Split interval at some optimal position and add split child to unhandled
   fn split<'r>(&'r mut self,
                current: IntervalId,
                conf: SplitConf,
-               state: &'r mut AllocatorState) -> IntervalId;
+               state: &'r mut AllocatorState<G, R>) -> IntervalId;
 
   // Split and spill all intervals intersecting with current
   fn split_and_spill<'r>(&'r mut self,
                          current: IntervalId,
-                         state: &'r mut AllocatorState);
+                         state: &'r mut AllocatorState<G, R>);
 
   // Iterate through all active intervals
   fn each_active<'r>(&'r self,
-                     state: &'r AllocatorState,
-                     f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool;
+                     state: &'r AllocatorState<G, R>,
+                     f: &fn(i: &IntervalId, reg: R) -> bool) -> bool;
 
   // Iterate through all inactive intervals that are intersecting with current
   fn each_intersecting<'r>(&'r self,
                            current: IntervalId,
-                           state: &'r AllocatorState,
+                           state: &'r AllocatorState<G, R>,
                            f: &fn(i: &IntervalId,
-                                  reg: RegisterId,
+                                  reg: R,
                                   pos: InstrId) -> bool) -> bool;
 
   // Verify allocation results
   fn verify(&self);
 }
 
-impl<K: KindHelper+Clone> Allocator for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> Allocator for Graph<K, G, R> {
   fn prepare(&mut self) {
     if self.prepared {
       return;
@@ -126,14 +129,15 @@ impl<K: KindHelper+Clone> Allocator for Graph<K> {
     self.prepare();
 
     // Create physical fixed intervals
-    for config.register_groups.eachi() |group, &count| {
-      self.physical.insert(group, ~SmallIntMap::new());
+    for config.register_groups.eachi() |group_id, &count| {
+      self.physical.insert(group_id, ~SmallIntMap::new());
       for uint::range(0, count) |reg| {
-        let interval = Interval::new(self, GroupId(group));
-        self.get_mut_interval(&interval).value = RegisterVal(GroupId(group),
-                                                             RegisterId(reg));
+        let group = GroupHelper::from_uint(group_id);
+        let interval = Interval::new(self, group);
+        self.get_mut_interval(&interval).value =
+            RegisterVal(group, RegisterHelper::from_uint(group, reg));
         self.get_mut_interval(&interval).fixed = true;
-        self.physical.find_mut(&group).unwrap().insert(reg, interval);
+        self.physical.find_mut(&group_id).unwrap().insert(reg, interval);
       }
     }
 
@@ -146,7 +150,8 @@ impl<K: KindHelper+Clone> Allocator for Graph<K> {
         // In each register group
         for config.register_groups.eachi() |group, _| {
           // Walk intervals!
-          match self.walk_intervals(GroupId(group), copy config) {
+          match self.walk_intervals(GroupHelper::from_uint(group),
+                                    copy config) {
             Ok(res) => {
               results.push(res);
             },
@@ -175,9 +180,11 @@ impl<K: KindHelper+Clone> Allocator for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> AllocatorHelper<G, R> for Graph<K, G, R> {
   fn walk_intervals(&mut self,
-                    group: GroupId,
+                    group: G,
                     config: Config) -> Result<GroupResult, ~str> {
     // Initialize allocator state
     let reg_count = config.register_groups[group.to_uint()];
@@ -266,7 +273,7 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
 
   fn allocate_free_reg<'r>(&'r mut self,
                            current: IntervalId,
-                           state: &'r mut AllocatorState) -> bool {
+                           state: &'r mut AllocatorState<G, R>) -> bool {
     let mut free_pos = vec::from_elem(state.register_count, uint::max_value);
     let hint = self.get_hint(current);
 
@@ -360,15 +367,15 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
     }
 
     // Give current a register
-    self.get_mut_interval(&current).value = RegisterVal(state.group,
-                                                        RegisterId(reg));
+    self.get_mut_interval(&current).value =
+        RegisterVal(state.group, RegisterHelper::from_uint(state.group, reg));
 
     return true;
   }
 
   fn allocate_blocked_reg<'r>(&'r mut self,
                               current: IntervalId,
-                              state: &'r mut AllocatorState)
+                              state: &'r mut AllocatorState<G, R>)
       -> Result<(), ~str> {
     let mut use_pos = vec::from_elem(state.register_count, uint::max_value);
     let mut block_pos = vec::from_elem(state.register_count, uint::max_value);
@@ -470,8 +477,9 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
           self.split(current, Between(start, u.pos), state);
         } else {
           // Assign register to current
-          self.get_mut_interval(&current).value = RegisterVal(state.group,
-                                                              RegisterId(reg));
+          self.get_mut_interval(&current).value =
+              RegisterVal(state.group,
+                          RegisterHelper::from_uint(state.group, reg));
 
           // If blocked somewhere before end by fixed interval
           if block_pos[reg] <= self.get_interval(&current).end().to_uint() {
@@ -492,8 +500,8 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
   }
 
   fn each_active<'r>(&'r self,
-                     state: &'r AllocatorState,
-                     f: &fn(i: &IntervalId, reg: RegisterId) -> bool) -> bool {
+                     state: &'r AllocatorState<G, R>,
+                     f: &fn(i: &IntervalId, reg: R) -> bool) -> bool {
     for state.active.each() |id| {
       match self.get_interval(id).value {
         RegisterVal(_, reg) => if !f(id, reg) { break },
@@ -505,9 +513,9 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
 
   fn each_intersecting<'r>(&'r self,
                            current: IntervalId,
-                           state: &'r AllocatorState,
+                           state: &'r AllocatorState<G, R>,
                            f: &fn(i: &IntervalId,
-                                  reg: RegisterId,
+                                  reg: R,
                                   pos: InstrId) -> bool) -> bool {
     for state.inactive.each() |id| {
       match self.get_intersection(id, &current) {
@@ -521,7 +529,7 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
     true
   }
 
-  fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState) {
+  fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState<G, R>) {
     // Sort intervals in the order of increasing start position
     do quick_sort(state.unhandled) |left, right| {
       let lstart = self.get_interval(left).start();
@@ -531,7 +539,7 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
     };
   }
 
-  fn get_hint(&mut self, current: IntervalId) -> Option<RegisterId> {
+  fn get_hint(&mut self, current: IntervalId) -> Option<R> {
     match self.get_interval(&current).hint {
       Some(ref id) => match self.get_interval(id).value {
         RegisterVal(g, r) => {
@@ -547,7 +555,7 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
   fn split<'r>(&'r mut self,
                current: IntervalId,
                conf: SplitConf,
-               state: &'r mut AllocatorState) -> IntervalId {
+               state: &'r mut AllocatorState<G, R>) -> IntervalId {
     let split_pos = match conf {
       Between(start, end) => self.optimal_split_pos(state.group, start, end),
       At(pos) => pos
@@ -561,7 +569,7 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
 
   fn split_and_spill<'r>(&'r mut self,
                          current: IntervalId,
-                         state: &'r mut AllocatorState) {
+                         state: &'r mut AllocatorState<G, R>) {
     let reg = match self.get_interval(&current).value {
       RegisterVal(_, r) => r,
       _ => fail!("Expected register value")
@@ -664,7 +672,7 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
 
         // Call instructions should swap out all used registers into stack slots
         for config.register_groups.eachi() |group, &count| {
-          if instr.kind.clobbers(GroupId(group)) {
+          if instr.kind.clobbers(GroupHelper::from_uint(group)) {
             for uint::range(0, count) |reg| {
               self.get_mut_interval(physical.get(&group).get(&reg))
                   .add_range(instr_id, instr_id.next());
@@ -784,8 +792,8 @@ impl<K: KindHelper+Clone> AllocatorHelper for Graph<K> {
   }
 }
 
-impl AllocatorState {
-  fn get_spill(&mut self) -> Value {
+impl<G: GroupHelper, R: RegisterHelper<G> > AllocatorState<G, R> {
+  fn get_spill(&mut self) -> Value<G, R> {
     return if self.spills.len() > 0 {
       self.spills.shift()
     } else {
@@ -795,7 +803,7 @@ impl AllocatorState {
     }
   }
 
-  fn to_handled(&mut self, value: Value) {
+  fn to_handled(&mut self, value: Value<G, R>) {
     match value {
       StackVal(group, slot) => self.spills.push(StackVal(group, slot)),
       _ => ()

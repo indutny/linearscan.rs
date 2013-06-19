@@ -12,7 +12,7 @@ mod emulator;
 #[test]
 fn realword_example() {
   do run_test(Left(21)) |g| {
-    let phi = g.phi(GroupId(Normal));
+    let phi = g.phi(Normal);
 
     let cond = g.empty_block();
     let left = g.empty_block();
@@ -65,12 +65,14 @@ fn nested_loops() {
   }
 
   do run_test(Left(125)) |g| {
-    fn create_loop(g: &mut Graph<Kind>,
+    fn create_loop(g: &mut Graph<Kind, Group, Register>,
                    in: InstrId,
-                   f: &fn(&mut Graph<Kind>, in: InstrId) -> Option<LoopResult>)
+                   f: &fn(&mut Graph<Kind,
+                          Group, Register>,
+                          in: InstrId) -> Option<LoopResult>)
         -> Option<LoopResult> {
-      let phi = g.phi(GroupId(Normal));
-      let res_phi = g.phi(GroupId(Normal));
+      let phi = g.phi(Normal);
+      let res_phi = g.phi(Normal);
       let cond = g.empty_block();
       let body = g.empty_block();
       let after = g.empty_block();

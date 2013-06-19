@@ -1,11 +1,12 @@
-use linearscan::graph::{Graph, KindHelper, Value, InstrId, BlockId, Gap,
+use linearscan::{KindHelper, RegisterHelper, GroupHelper};
+use linearscan::graph::{Graph, Value, InstrId, BlockId, Gap,
                         Phi, ToPhi, User, Swap, Move};
 
 pub trait Generator<K, G> {
   fn generate(&self, g: &mut G);
 }
 
-pub trait GeneratorFunctions<K> {
+pub trait GeneratorFunctions<K, G: GroupHelper, R: RegisterHelper<G> > {
   /// Function prologue (stack initialization, etc)
   fn prelude(&mut self);
 
@@ -15,10 +16,10 @@ pub trait GeneratorFunctions<K> {
   fn epilogue(&mut self);
 
   /// Swap `left` and `right` value
-  fn swap(&mut self, left: Value, right: Value);
+  fn swap(&mut self, left: Value<G, R>, right: Value<G, R>);
 
   /// Move value from `from` to `to`
-  fn move(&mut self, from: Value, to: Value);
+  fn move(&mut self, from: Value<G, R>, to: Value<G, R>);
 
   /// Block start notification, might be used to relocate labels
   fn block(&mut self, id: BlockId);
@@ -29,19 +30,22 @@ pub trait GeneratorFunctions<K> {
   /// Generate instruction
   fn instr(&mut self,
            kind: &K,
-           output: Option<Value>,
-           inputs: &[Value],
-           temporary: &[Value],
+           output: Option<Value<G,R> >,
+           inputs: &[Value<G, R>],
+           temporary: &[Value<G, R>],
            succ: &[BlockId]);
 }
 
-pub trait GeneratorHelper<K, G> {
-  fn generate_gap(&self, g: &mut G, id: &InstrId);
+pub trait GeneratorHelper<K, GF> {
+  fn generate_gap(&self, g: &mut GF, id: &InstrId);
 }
 
-impl<K: KindHelper+Clone, G: GeneratorFunctions<K> > Generator<K, G>
-    for Graph<K> {
-  fn generate(&self, g: &mut G) {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone,
+     GF: GeneratorFunctions<K, G, R> > Generator<K, GF>
+    for Graph<K, G, R> {
+  fn generate(&self, g: &mut GF) {
     g.prelude();
 
     // Invoke functions in order of increasing instruction id
@@ -118,9 +122,12 @@ impl<K: KindHelper+Clone, G: GeneratorFunctions<K> > Generator<K, G>
   }
 }
 
-impl<K: KindHelper+Clone, G: GeneratorFunctions<K> > GeneratorHelper<K, G>
-    for Graph<K> {
-  fn generate_gap(&self, g: &mut G, id: &InstrId) {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone,
+     GF: GeneratorFunctions<K, G, R> > GeneratorHelper<K, GF>
+    for Graph<K, G, R> {
+  fn generate_gap(&self, g: &mut GF, id: &InstrId) {
     match self.gaps.find(&id.to_uint()) {
       Some(state) => for state.actions.each() |action| {
         let from = self.get_interval(&action.from).value;

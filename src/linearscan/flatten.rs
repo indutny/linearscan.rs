@@ -1,6 +1,7 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
-use linearscan::graph::{Graph, BlockId, KindHelper};
+use linearscan::{KindHelper, RegisterHelper, GroupHelper};
+use linearscan::graph::{Graph, BlockId};
 
 struct MapResult {
   block: BlockId,
@@ -26,7 +27,9 @@ trait FlattenHelper {
   fn flatten_reindex_instructions(&mut self, list: &[BlockId]);
 }
 
-impl<K: KindHelper+Clone> FlattenHelper for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> FlattenHelper for Graph<K, G, R> {
   fn flatten_get_ends(&mut self) -> ~SmallIntMap<~[BlockId]> {
     let mut queue = ~[self.root.expect("Root block")];
     let mut visited = ~BitvSet::new();
@@ -225,7 +228,9 @@ impl<K: KindHelper+Clone> FlattenHelper for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Clone> Flatten for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> Flatten for Graph<K, G, R> {
   fn flatten(&mut self) {
     self.flatten_assign_indexes();
 

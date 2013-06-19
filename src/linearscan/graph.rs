@@ -1,6 +1,7 @@
 use extra::smallintmap::SmallIntMap;
 use extra::bitv::BitvSet;
 use std::uint;
+use linearscan::{KindHelper, RegisterHelper, GroupHelper};
 
 #[deriving(Eq, Ord, Clone)]
 pub struct BlockId(uint);
@@ -9,20 +10,16 @@ pub struct InstrId(uint);
 #[deriving(Eq, Ord, Clone)]
 pub struct IntervalId(uint);
 #[deriving(Eq, Ord, Clone)]
-pub struct GroupId(uint);
-#[deriving(Eq, Ord, Clone)]
-pub struct RegisterId(uint);
-#[deriving(Eq, Ord, Clone)]
 pub struct StackId(uint);
 
-pub struct Graph<K> {
+pub struct Graph<K, G, R> {
   root: Option<BlockId>,
   block_id: uint,
   instr_id: uint,
   interval_id: uint,
-  intervals: ~SmallIntMap<~Interval>,
+  intervals: ~SmallIntMap<~Interval<G, R> >,
   blocks: ~SmallIntMap<~Block<K> >,
-  instructions: ~SmallIntMap<~Instruction<K> >,
+  instructions: ~SmallIntMap<~Instruction<K, G> >,
   phis: ~[InstrId],
   gaps: ~SmallIntMap<~GapState>,
   prepared: bool,
@@ -55,10 +52,10 @@ pub struct Block<K> {
 }
 
 #[deriving(Clone)]
-pub struct Instruction<K> {
+pub struct Instruction<K, G> {
   id: InstrId,
   block: BlockId,
-  kind: InstrKind<K>,
+  kind: InstrKind<K, G>,
   output: Option<IntervalId>,
   inputs: ~[InstrId],
   temporary: ~[IntervalId],
@@ -68,41 +65,41 @@ pub struct Instruction<K> {
 // Abstraction to allow having user-specified instruction types
 // as well as internal movement instructions
 #[deriving(ToStr, Clone)]
-pub enum InstrKind<K> {
+pub enum InstrKind<K, G> {
   User(K),
   Gap,
-  Phi(GroupId),
-  ToPhi(GroupId)
+  Phi(G),
+  ToPhi(G)
 }
 
-pub struct Interval {
+pub struct Interval<G, R> {
   id: IntervalId,
-  value: Value,
+  value: Value<G, R>,
   hint: Option<IntervalId>,
   ranges: ~[LiveRange],
   parent: Option<IntervalId>,
-  uses: ~[Use],
+  uses: ~[Use<G, R>],
   children: ~[IntervalId],
   fixed: bool
 }
 
 #[deriving(Eq)]
-pub enum Value {
-  VirtualVal(GroupId),
-  RegisterVal(GroupId, RegisterId),
-  StackVal(GroupId, StackId)
+pub enum Value<G, R> {
+  VirtualVal(G),
+  RegisterVal(G, R),
+  StackVal(G, StackId)
 }
 
-pub struct Use {
-  kind: UseKind,
+pub struct Use<G, R> {
+  kind: UseKind<G, R>,
   pos: InstrId
 }
 
 #[deriving(Eq)]
-pub enum UseKind {
-  UseAny(GroupId),
-  UseRegister(GroupId),
-  UseFixed(GroupId, RegisterId)
+pub enum UseKind<G, R> {
+  UseAny(G),
+  UseRegister(G),
+  UseFixed(G, R)
 }
 
 #[deriving(Eq)]
@@ -127,16 +124,11 @@ pub struct GapAction {
   to: IntervalId
 }
 
-pub trait KindHelper {
-  fn clobbers(&self, group: GroupId) -> bool;
-  fn temporary(&self) -> ~[GroupId];
-  fn use_kind(&self, i: uint) -> UseKind;
-  fn result_kind(&self) -> Option<UseKind>;
-}
-
-impl<K: KindHelper+Clone> Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> Graph<K, G, R> {
   /// Create new graph
-  pub fn new() -> Graph<K> {
+  pub fn new() -> Graph<K, G, R> {
     Graph {
       root: None,
       block_id: 0,
@@ -153,7 +145,7 @@ impl<K: KindHelper+Clone> Graph<K> {
   }
 
   /// Create gap (internal)
-  pub fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K> {
+  pub fn create_gap(&mut self, block: &BlockId) -> ~Instruction<K, G> {
     let id = self.instr_id();
     return ~Instruction {
       id: id,
@@ -186,11 +178,11 @@ impl<K: KindHelper+Clone> Graph<K> {
 
   /// Mutable instruction getter
   pub fn get_mut_instr<'r>(&'r mut self,
-                           id: &InstrId) -> &'r mut ~Instruction<K> {
+                           id: &InstrId) -> &'r mut ~Instruction<K, G> {
     self.instructions.find_mut(&id.to_uint()).unwrap()
   }
 
-  pub fn get_instr<'r>(&'r self, id: &InstrId) -> &'r ~Instruction<K> {
+  pub fn get_instr<'r>(&'r self, id: &InstrId) -> &'r ~Instruction<K, G> {
     self.instructions.get(&id.to_uint())
   }
 
@@ -201,11 +193,11 @@ impl<K: KindHelper+Clone> Graph<K> {
 
   /// Mutable interval getter
   pub fn get_mut_interval<'r>(&'r mut self,
-                              id: &IntervalId) -> &'r mut ~Interval {
+                              id: &IntervalId) -> &'r mut ~Interval<G, R> {
     self.intervals.find_mut(&id.to_uint()).unwrap()
   }
 
-  pub fn get_interval<'r>(&'r self, id: &IntervalId) -> &'r ~Interval {
+  pub fn get_interval<'r>(&'r self, id: &IntervalId) -> &'r ~Interval<G, R> {
     self.intervals.get(&id.to_uint())
   }
 
@@ -246,7 +238,7 @@ impl<K: KindHelper+Clone> Graph<K> {
 
   /// Find optimal split position between two instructions
   pub fn optimal_split_pos(&self,
-                           group: GroupId,
+                           group: G,
                            start: InstrId,
                            end: InstrId) -> InstrId {
     // Fast and unfortunate case
@@ -374,7 +366,7 @@ impl<K: KindHelper+Clone> Graph<K> {
   /// Helper function
   pub fn iterate_children(&self,
                           id: &IntervalId,
-                          f: &fn(&~Interval) -> bool) -> bool {
+                          f: &fn(&~Interval<G, R>) -> bool) -> bool {
     let p = self.get_interval(id);
     if !f(p) {
       return false;
@@ -416,7 +408,9 @@ impl<K: KindHelper+Clone> Graph<K> {
     None
   }
 
-  pub fn get_value(&self, i: &IntervalId, pos: InstrId) -> Option<Value> {
+  pub fn get_value(&self,
+                   i: &IntervalId,
+                   pos: InstrId) -> Option<Value<G, R> > {
     let child = self.child_with_use_at(i, pos);
     match child {
       Some(child) => Some(self.get_interval(&child).value),
@@ -434,7 +428,7 @@ impl<K: KindHelper+Clone> Graph<K> {
 
   /// Return true if instruction at specified position contains
   /// register-clobbering call.
-  pub fn clobbers(&self, group: GroupId, pos: &InstrId) -> bool {
+  pub fn clobbers(&self, group: G, pos: &InstrId) -> bool {
     return self.get_instr(pos).kind.clobbers(group);
   }
 
@@ -463,9 +457,9 @@ impl<K: KindHelper+Clone> Graph<K> {
   }
 }
 
-impl<K: KindHelper+Clone> Block<K> {
+impl<G: GroupHelper, R: RegisterHelper<G>, K: KindHelper<G, R>+Clone> Block<K> {
   /// Create new empty block
-  pub fn new(graph: &mut Graph<K>) -> Block<K> {
+  pub fn new(graph: &mut Graph<K, G, R>) -> Block<K> {
     Block {
       id: graph.block_id(),
       instructions: ~[],
@@ -496,10 +490,12 @@ impl<K: KindHelper+Clone> Block<K> {
   }
 }
 
-impl<K: KindHelper+Clone> Instruction<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> Instruction<K, G> {
   /// Create instruction without output interval
-  pub fn new_empty(graph: &mut Graph<K>,
-                   kind: InstrKind<K>,
+  pub fn new_empty(graph: &mut Graph<K, G, R>,
+                   kind: InstrKind<K, G>,
                    args: ~[InstrId]) -> InstrId {
     let id = graph.instr_id();
 
@@ -522,8 +518,8 @@ impl<K: KindHelper+Clone> Instruction<K> {
   }
 
   /// Create instruction with output
-  pub fn new(graph: &mut Graph<K>,
-             kind: InstrKind<K>,
+  pub fn new(graph: &mut Graph<K, G, R>,
+             kind: InstrKind<K, G>,
              args: ~[InstrId]) -> InstrId {
 
     let output = match kind.result_kind() {
@@ -537,10 +533,10 @@ impl<K: KindHelper+Clone> Instruction<K> {
   }
 }
 
-impl Interval {
+impl<G: GroupHelper, R: RegisterHelper<G> > Interval<G, R> {
   /// Create new virtual interval
-  pub fn new<K: KindHelper+Clone>(graph: &mut Graph<K>,
-                                  group: GroupId) -> IntervalId {
+  pub fn new<K: KindHelper<G, R>+Clone>(graph: &mut Graph<K, G, R>,
+                                        group: G) -> IntervalId {
     let r = Interval {
       id: graph.interval_id(),
       value: VirtualVal(group),
@@ -597,7 +593,7 @@ impl Interval {
 
   /// Add use to the interval's use list.
   /// NOTE: uses are ordered by increasing `pos`
-  pub fn add_use(&mut self, kind: UseKind, pos: InstrId) {
+  pub fn add_use(&mut self, kind: UseKind<G, R>, pos: InstrId) {
     assert!(self.uses.len() == 0 ||
             self.uses[0].pos > pos ||
             self.uses[0].kind.group() == kind.group());
@@ -605,7 +601,7 @@ impl Interval {
   }
 
   /// Return next UseFixed(...) after `after` position.
-  pub fn next_fixed_use(&self, after: InstrId) -> Option<Use> {
+  pub fn next_fixed_use(&self, after: InstrId) -> Option<Use<G, R> > {
     for self.uses.each() |u| {
       match u.kind {
         UseFixed(_, _) if u.pos >= after => { return Some(*u); },
@@ -616,7 +612,7 @@ impl Interval {
   }
 
   /// Return next UseFixed(...) or UseRegister after `after` position.
-  pub fn next_use(&self, after: InstrId) -> Option<Use> {
+  pub fn next_use(&self, after: InstrId) -> Option<Use<G, R> > {
     for self.uses.each() |u| {
       if u.pos >= after && !u.kind.is_any() {
         return Some(*u);
@@ -626,7 +622,7 @@ impl Interval {
   }
 
   /// Return last UseFixed(...) or UseRegister before `before` position
-  pub fn last_use(&self, before: InstrId) -> Option<Use> {
+  pub fn last_use(&self, before: InstrId) -> Option<Use<G, R> > {
     for self.uses.rev_iter().advance |u| {
       if u.pos <= before && !u.kind.is_any() {
         return Some(*u);
@@ -636,9 +632,11 @@ impl Interval {
   }
 }
 
-impl<K: KindHelper+Clone> KindHelper for InstrKind<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> KindHelper<G, R> for InstrKind<K, G> {
   /// Return true if instruction is clobbering registers
-  pub fn clobbers(&self, group: GroupId) -> bool {
+  pub fn clobbers(&self, group: G) -> bool {
     match self {
       &User(ref k) => k.clobbers(group),
       &Gap => false,
@@ -648,7 +646,7 @@ impl<K: KindHelper+Clone> KindHelper for InstrKind<K> {
   }
 
   /// Return count of instruction's temporary operands
-  pub fn temporary(&self) -> ~[GroupId] {
+  pub fn temporary(&self) -> ~[G] {
     match self {
       &User(ref k) => k.temporary(),
       &Gap => ~[],
@@ -658,17 +656,18 @@ impl<K: KindHelper+Clone> KindHelper for InstrKind<K> {
   }
 
   /// Return use kind of instruction's `i`th input
-  pub fn use_kind(&self, i: uint) -> UseKind {
+  pub fn use_kind(&self, i: uint) -> UseKind<G, R> {
     match self {
       &User(ref k) => k.use_kind(i),
-      &Gap => UseAny(GroupId(0)), // note: group is not important for gap
+      // note: group is not important for gap
+      &Gap => UseAny(GroupHelper::any()),
       &Phi(g) => UseAny(g),
       &ToPhi(g) => UseAny(g)
     }
   }
 
   /// Return result kind of instruction or None, if instruction has no result
-  pub fn result_kind(&self) -> Option<UseKind> {
+  pub fn result_kind(&self) -> Option<UseKind<G, R> > {
     match self {
       &User(ref k) => k.result_kind(),
       &Gap => None,
@@ -695,7 +694,7 @@ impl LiveRange {
   }
 }
 
-impl Value {
+impl<G: GroupHelper, R: RegisterHelper<G> > Value<G, R> {
   pub fn is_virtual(&self) -> bool {
     match self {
       &VirtualVal(_) => true,
@@ -703,7 +702,7 @@ impl Value {
     }
   }
 
-  pub fn group(&self) -> GroupId {
+  pub fn group(&self) -> G {
     match self {
       &VirtualVal(g) => g,
       &RegisterVal(g, _) => g,
@@ -712,7 +711,7 @@ impl Value {
   }
 }
 
-impl UseKind {
+impl<G: GroupHelper, R: RegisterHelper<G> > UseKind<G, R> {
   pub fn is_fixed(&self) -> bool {
     match self {
       &UseFixed(_, _) => true,
@@ -727,7 +726,7 @@ impl UseKind {
     }
   }
 
-  pub fn group(&self) -> GroupId {
+  pub fn group(&self) -> G {
     match self {
       &UseRegister(g) => g,
       &UseAny(g) => g,
@@ -742,7 +741,7 @@ impl GapState {
   }
 }
 
-impl<K: KindHelper+Clone> Block<K> {
+impl<K> Block<K> {
   pub fn start(&self) -> InstrId {
     assert!(self.instructions.len() != 0);
     return *self.instructions.head();
@@ -770,14 +769,6 @@ impl InstrId {
 
 impl GraphId for IntervalId {
   fn to_uint(&self) -> uint { match self { &IntervalId(id) => id } }
-}
-
-impl GraphId for GroupId {
-  fn to_uint(&self) -> uint { match self { &GroupId(id) => id } }
-}
-
-impl GraphId for RegisterId {
-  fn to_uint(&self) -> uint { match self { &RegisterId(id) => id } }
 }
 
 impl GraphId for StackId {

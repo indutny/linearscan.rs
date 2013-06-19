@@ -1,4 +1,5 @@
-use linearscan::graph::{Graph, BlockId, KindHelper};
+use linearscan::{KindHelper, RegisterHelper, GroupHelper};
+use linearscan::graph::{Graph, BlockId};
 use extra::bitv::BitvSet;
 
 pub trait Liveness {
@@ -13,7 +14,9 @@ trait LivenessHelper {
   fn build_global(&mut self, blocks: &[BlockId]);
 }
 
-impl<K: KindHelper+Clone> Liveness for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> Liveness for Graph<K, G, R> {
   fn liveness_analysis(&mut self) {
     let blocks = self.get_block_list();
     self.build_local(blocks);
@@ -21,7 +24,9 @@ impl<K: KindHelper+Clone> Liveness for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Clone> LivenessHelper for Graph<K> {
+impl<G: GroupHelper,
+     R: RegisterHelper<G>,
+     K: KindHelper<G, R>+Clone> LivenessHelper for Graph<K, G, R> {
   fn build_local(&mut self, blocks: &[BlockId]) {
     for blocks.each() |block| {
       let instructions = copy self.get_block(block).instructions;

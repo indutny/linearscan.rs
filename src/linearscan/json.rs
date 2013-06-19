@@ -1,10 +1,10 @@
 use extra::json::{ToJson, Json, Object, List, String, Number, Boolean, Null};
 use std::hashmap::HashMap;
+use linearscan::{KindHelper, GroupHelper, RegisterHelper};
 use linearscan::graph::{Graph, Block, Instruction, Interval, LiveRange,
                         User, Gap, GapState, Move, Swap, ToPhi, Phi,
                         Use, UseAny, UseRegister, UseFixed,
-                        Value, VirtualVal, RegisterVal, StackVal,
-                        KindHelper};
+                        Value, VirtualVal, RegisterVal, StackVal};
 
 trait JsonHelper {
   fn get_blocks(&self) -> Json;
@@ -12,7 +12,9 @@ trait JsonHelper {
   fn get_instructions(&self) -> Json;
 }
 
-impl<K: KindHelper+Clone+ToStr> ToJson for Block<K> {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr,
+     K: KindHelper<G, R>+Clone+ToStr> ToJson for Block<K> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -29,7 +31,9 @@ impl<K: KindHelper+Clone+ToStr> ToJson for Block<K> {
   }
 }
 
-impl<K: KindHelper+Clone+ToStr> ToJson for Instruction<K> {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr,
+     K: KindHelper<G, R>+Clone+ToStr> ToJson for Instruction<K, G> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -75,7 +79,8 @@ impl ToJson for GapState {
   }
 }
 
-impl ToJson for Interval {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr> ToJson for Interval<G, R> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
 
@@ -106,7 +111,8 @@ impl ToJson for LiveRange {
   }
 }
 
-impl ToJson for Use {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr> ToJson for Use<G, R> {
   fn to_json(&self) -> Json {
     let mut obj = ~HashMap::new();
     let mut kind = ~HashMap::new();
@@ -116,7 +122,7 @@ impl ToJson for Use {
       UseRegister(_) => kind.insert(~"type", String(~"reg")),
       UseFixed(_, val) => {
         kind.insert(~"type", String(~"fixed"));
-        kind.insert(~"value", val.to_json())
+        kind.insert(~"value", String(val.to_str()))
       }
     };
     obj.insert(~"group", Number(self.kind.group().to_uint() as float));
@@ -127,7 +133,8 @@ impl ToJson for Use {
   }
 }
 
-impl ToJson for Value {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr> ToJson for Value<G, R> {
   fn to_json(&self) -> Json {
     return String(match self {
       &VirtualVal(g) => ~"v{" + g.to_str() + "}",
@@ -137,7 +144,9 @@ impl ToJson for Value {
   }
 }
 
-impl<K: KindHelper+Clone+ToStr> JsonHelper for Graph<K> {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr,
+     K: KindHelper<G, R>+Clone+ToStr> JsonHelper for Graph<K, G, R> {
   fn get_blocks(&self) -> Json {
     let mut result = ~[];
 
@@ -187,7 +196,9 @@ impl<K: KindHelper+Clone+ToStr> JsonHelper for Graph<K> {
   }
 }
 
-impl<K: KindHelper+Clone+ToStr> ToJson for Graph<K> {
+impl<G: GroupHelper+ToStr,
+     R: RegisterHelper<G>+ToStr,
+     K: KindHelper<G, R>+Clone+ToStr> ToJson for Graph<K, G, R> {
   fn to_json(&self) -> Json {
     let mut result = ~HashMap::new();
 
