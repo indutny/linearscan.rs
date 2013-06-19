@@ -104,7 +104,7 @@ impl<G: GroupHelper,
         to: actions[i].to
       });
     } else if !sentinel {
-      result.push(copy actions[i]);
+      result.push(actions[i].clone());
     }
     s[i] = Moved;
 

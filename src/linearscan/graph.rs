@@ -113,12 +113,13 @@ pub struct GapState {
   actions: ~[GapAction]
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum GapActionKind {
   Move,
   Swap
 }
 
+#[deriving(Clone)]
 pub struct GapAction {
   kind: GapActionKind,
   from: IntervalId,
