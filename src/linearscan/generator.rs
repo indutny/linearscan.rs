@@ -94,7 +94,11 @@ impl<K: KindHelper+Copy, G: GeneratorFunctions<K> > Generator<K, G>
             }
           },
           Gap => (), // handled separately
-          User(k) => g.instr(&k, output, inputs, temporary, block.successors)
+          User(ref k) => g.instr(k,
+                                 output,
+                                 inputs,
+                                 temporary,
+                                 block.successors)
         }
       }
 

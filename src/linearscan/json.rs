@@ -36,7 +36,7 @@ impl<K: KindHelper+Copy+ToStr> ToJson for Instruction<K> {
     obj.insert(~"id", Number(self.id.to_uint() as float));
     obj.insert(~"block", Number(self.block.to_uint() as float));
     obj.insert(~"kind", String(match self.kind {
-      User(kind) => kind.to_str(),
+      User(ref kind) => kind.to_str(),
       Gap => ~"~gap",
       ToPhi(_) => ~"~to_phi",
       Phi(_) => ~"~phi"

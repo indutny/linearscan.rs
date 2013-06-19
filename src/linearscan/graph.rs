@@ -411,7 +411,8 @@ impl<K: KindHelper+Copy> Graph<K> {
 
     // Add child
     let mut index = 0;
-    for self.get_interval(&parent).children.eachi_reverse() |i, child| {
+    for self.get_interval(&parent).children
+            .rev_iter().enumerate().advance |(i, child)| {
       if self.get_interval(child).end() <= pos {
         index = i + 1;
         break;
@@ -758,7 +759,7 @@ impl Interval {
 
   /// Return last UseFixed(...) or UseRegister before `before` position
   pub fn last_use(&self, before: InstrId) -> Option<Use> {
-    for self.uses.each_reverse() |u| {
+    for self.uses.rev_iter().advance |u| {
       if u.pos <= before && !u.kind.is_any() {
         return Some(*u);
       }

@@ -645,7 +645,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
   fn build_ranges(&mut self, blocks: &[BlockId], config: Config)
       -> Result<(), ~str> {
     let physical = copy self.physical;
-    for blocks.each_reverse() |block_id| {
+    for blocks.rev_iter().advance |block_id| {
       let instructions = copy self.get_block(block_id).instructions;
       let live_out = copy self.get_block(block_id).live_out;
       let block_from = self.get_block(block_id).start();
@@ -659,7 +659,7 @@ impl<K: KindHelper+Copy> AllocatorHelper for Graph<K> {
             .add_range(block_from, block_to);
       }
 
-      for instructions.each_reverse() |&instr_id| {
+      for instructions.rev_iter().advance |&instr_id| {
         let instr = copy *self.get_instr(&instr_id);
 
         // Call instructions should swap out all used registers into stack slots

@@ -55,7 +55,7 @@ impl<K: DCEKindHelper+Copy> DCEKindHelper for InstrKind<K> {
       &Phi(_) => false,
       &ToPhi(_) => false,
       &Gap => fail!("DCE should run before allocation"),
-      &User(k) => k.has_sideeffects()
+      &User(ref k) => k.has_sideeffects()
     }
   }
 }
