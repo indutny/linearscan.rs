@@ -7,7 +7,6 @@ pub use linearscan::graph::{Graph, KindHelper,
                             GroupId, BlockId, InstrId, RegisterId, StackId,
                             Value, RegisterVal, StackVal};
 pub use linearscan::allocator::{Allocator, Config};
-pub use linearscan::dce::{DCE, DCEKindHelper};
 pub use linearscan::generator::{Generator, GeneratorFunctions};
 
 struct BlockBuilder<'self, K> {

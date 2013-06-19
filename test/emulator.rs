@@ -68,18 +68,6 @@ impl KindHelper for Kind {
   }
 }
 
-impl DCEKindHelper for Kind {
-  fn has_sideeffects(&self) -> bool {
-    match self {
-      &Return => true,
-      &ReturnDouble => true,
-      &BranchIfBigger => true,
-      &Print => true,
-      _ => false
-    }
-  }
-}
-
 pub struct Emulator {
   ip: uint,
   instructions: ~[Instruction],

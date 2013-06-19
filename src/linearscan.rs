@@ -6,9 +6,6 @@ mod allocator;
 #[path="linearscan/api.rs"]
 mod api;
 
-#[path="linearscan/dce.rs"]
-mod dce;
-
 #[path="linearscan/flatten.rs"]
 mod flatten;
 
