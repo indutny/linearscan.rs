@@ -616,7 +616,7 @@ impl<G: GroupHelper<R>,
       let successors = self.get_block(block_id).successors.clone();
       for successors.each() |succ_id| {
         let succ_start = self.get_block(succ_id).start().clone();
-        let live_in = copy self.get_block(succ_id).live_in;
+        let live_in = self.get_block(succ_id).live_in.clone();
 
         for live_in.each() |&interval| {
           let interval_id = IntervalId(interval);
@@ -644,10 +644,10 @@ impl<G: GroupHelper<R>,
 
   fn build_ranges(&mut self, blocks: &[BlockId])
       -> Result<(), ~str> {
-    let physical = copy self.physical;
+    let physical = self.physical.clone();
     for blocks.rev_iter().advance |block_id| {
       let instructions = self.get_block(block_id).instructions.clone();
-      let live_out = copy self.get_block(block_id).live_out;
+      let live_out = self.get_block(block_id).live_out.clone();
       let block_from = self.get_block(block_id).start();
       let block_to = self.get_block(block_id).end();
 

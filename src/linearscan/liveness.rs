@@ -73,7 +73,7 @@ impl<G: GroupHelper<R>,
         // Propagate:
         // `union(diff(block.live_out, block.live_kill), block.live_gen)`
         // to block.live_in
-        let mut old = copy self.get_block(block).live_out;
+        let mut old = self.get_block(block).live_out.clone();
         old.difference_with(self.get_block(block).live_kill);
         old.union_with(self.get_block(block).live_gen);
         if old != self.get_block(block).live_in {
