@@ -28,10 +28,10 @@ impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
      K: KindHelper<G, R> > LivenessHelper for Graph<K, G, R> {
   fn build_local(&mut self, blocks: &[BlockId]) {
-    for blocks.each() |block| {
+    for block in blocks.iter() {
       let instructions = self.get_block(block).instructions.clone();
 
-      for instructions.each() |instr| {
+      for instr in instructions.iter() {
         let output = self.get_instr(instr).output;
         let inputs = self.get_instr(instr).inputs.clone();
 
@@ -41,7 +41,7 @@ impl<G: GroupHelper<R>,
           None => true
         };
 
-        for inputs.each() |input_instr| {
+        for input_instr in inputs.iter() {
           let input = self.get_output(input_instr);
           if !self.get_block(block).live_kill.contains(&input.to_uint()) {
             self.get_mut_block(block).live_gen.insert(input.to_uint());
@@ -56,11 +56,11 @@ impl<G: GroupHelper<R>,
     while change {
       change = false;
 
-      for blocks.rev_iter().advance |block| {
+      for block in blocks.rev_iter() {
         let successors = self.get_block(block).successors.clone();
 
         let mut tmp = ~BitvSet::new();
-        for successors.each() |succ| {
+        for succ in successors.iter() {
           tmp.union_with(self.get_block(succ).live_in);
         }
 

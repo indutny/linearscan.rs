@@ -172,7 +172,7 @@ impl<G: GroupHelper<R>,
   /// Return ordered list of blocks
   pub fn get_block_list(&self) -> ~[BlockId] {
     let mut blocks = ~[];
-    for self.blocks.each() |_, block| {
+    for (_, block) in self.blocks.iter() {
       blocks.push(block.id);
     }
     return blocks;
@@ -218,8 +218,8 @@ impl<G: GroupHelper<R>,
     let int_a = self.get_interval(a);
     let int_b = self.get_interval(b);
 
-    for int_a.ranges.each() |a| {
-      for int_b.ranges.each() |b| {
+    for a in int_a.ranges.iter() {
+      for b in int_b.ranges.iter() {
         match a.get_intersection(b) {
           Some(pos) => {
             return Some(pos)
@@ -250,7 +250,7 @@ impl<G: GroupHelper<R>,
 
     let mut best_pos = end;
     let mut best_depth = uint::max_value;
-    for self.blocks.each() |_, block| {
+    for (_, block) in self.blocks.iter() {
       if best_depth >= block.loop_depth {
         let block_to = block.end();
 
@@ -290,7 +290,7 @@ impl<G: GroupHelper<R>,
     // Find appropriate child interval
     let mut split_parent = parent;
     if !self.get_interval(&split_parent).covers(pos) {
-      for self.get_interval(&split_parent).children.each() |child| {
+      for child in self.get_interval(&split_parent).children.iter() {
         if self.get_interval(child).covers(pos) {
           split_parent = *child;
         }
@@ -354,8 +354,8 @@ impl<G: GroupHelper<R>,
 
     // Add child
     let mut index = 0;
-    for self.get_interval(&parent).children
-            .rev_iter().enumerate().advance |(i, child)| {
+    for (i, child) in self.get_interval(&parent).children
+                                                .rev_iter().enumerate() {
       if self.get_interval(child).end() <= pos {
         index = i + 1;
         break;
@@ -368,6 +368,7 @@ impl<G: GroupHelper<R>,
   }
 
   /// Helper function
+  /// TODO: Use iterators
   pub fn iterate_children(&self,
                           id: &IntervalId,
                           f: &fn(&~Interval<G, R>) -> bool) -> bool {
@@ -376,7 +377,7 @@ impl<G: GroupHelper<R>,
       return false;
     }
 
-    for p.children.each() |child_id| {
+    for child_id in p.children.iter() {
       let child = self.get_interval(child_id);
       if !f(child) { break; }
     }
@@ -388,28 +389,37 @@ impl<G: GroupHelper<R>,
   pub fn child_at(&self,
                   parent: &IntervalId,
                   pos: InstrId) -> Option<IntervalId> {
-    for self.iterate_children(parent) |interval| {
-      if interval.start() <= pos && pos < interval.end() {
-        return Some(interval.id);
-      }
-    };
+    let mut ret = None;
 
-    // No match?
-    None
+    self.iterate_children(parent, |interval| {
+      if interval.start() <= pos && pos < interval.end() {
+        ret = Some(interval.id);
+        false
+      } else {
+        true
+      }
+    });
+
+    ret
   }
 
   pub fn child_with_use_at(&self,
                            parent: &IntervalId,
                            pos: InstrId) -> Option<IntervalId> {
-    for self.iterate_children(parent) |interval| {
+    let mut ret = None;
+
+    self.iterate_children(parent, |interval| {
       if interval.start() <= pos && pos <= interval.end() &&
          interval.uses.any(|u| { u.pos == pos }) {
-        return Some(interval.id);
+        ret = Some(interval.id);
+        false
+      } else {
+        true
       }
-    };
+    });
 
     // No match?
-    None
+    ret
   }
 
   pub fn get_value(&self,
@@ -438,7 +448,7 @@ impl<G: GroupHelper<R>,
 
   /// Return next block id, used at graph construction
   #[inline(always)]
-  priv fn block_id(&mut self) -> BlockId {
+  fn block_id(&mut self) -> BlockId {
     let r = self.block_id;
     self.block_id += 1;
     return BlockId(r);
@@ -454,7 +464,7 @@ impl<G: GroupHelper<R>,
 
   /// Return next interval id, used at graph construction
   #[inline(always)]
-  priv fn interval_id(&mut self) -> IntervalId {
+  fn interval_id(&mut self) -> IntervalId {
     let r = self.interval_id;
     self.interval_id += 1;
     return IntervalId(r);
@@ -504,7 +514,7 @@ impl<G: GroupHelper<R>,
     let id = graph.instr_id();
 
     let mut temporary = ~[];
-    for kind.temporary().each() |group| {
+    for group in kind.temporary().iter() {
       temporary.push(Interval::new(graph, group.clone()));
     }
 
@@ -606,7 +616,7 @@ impl<G: GroupHelper<R>, R: RegisterHelper<G> > Interval<G, R> {
 
   /// Return next UseFixed(...) after `after` position.
   pub fn next_fixed_use(&self, after: InstrId) -> Option<Use<G, R> > {
-    for self.uses.each() |u| {
+    for u in self.uses.iter() {
       match u.kind {
         UseFixed(_) if u.pos >= after => { return Some(u.clone()); },
         _ => ()
@@ -617,7 +627,7 @@ impl<G: GroupHelper<R>, R: RegisterHelper<G> > Interval<G, R> {
 
   /// Return next UseFixed(...) or UseRegister after `after` position.
   pub fn next_use(&self, after: InstrId) -> Option<Use<G, R> > {
-    for self.uses.each() |u| {
+    for u in self.uses.iter() {
       if u.pos >= after && !u.kind.is_any() {
         return Some(u.clone());
       }
@@ -627,7 +637,7 @@ impl<G: GroupHelper<R>, R: RegisterHelper<G> > Interval<G, R> {
 
   /// Return last UseFixed(...) or UseRegister before `before` position
   pub fn last_use(&self, before: InstrId) -> Option<Use<G, R> > {
-    for self.uses.rev_iter().advance |u| {
+    for u in self.uses.rev_iter() {
       if u.pos <= before && !u.kind.is_any() {
         return Some(u.clone());
       }

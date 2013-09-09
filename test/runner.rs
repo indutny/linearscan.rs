@@ -1,7 +1,7 @@
 extern mod extra;
 
 use extra::json::ToJson;
-use std::uint;
+use std::iterator;
 use linearscan::*;
 use emulator::*;
 
@@ -66,10 +66,10 @@ fn nested_loops() {
 
   do run_test(Left(125)) |g| {
     fn create_loop(g: &mut Graph<Kind, Group, Register>,
-                   in: InstrId,
+                   inp: InstrId,
                    f: &fn(&mut Graph<Kind,
                           Group, Register>,
-                          in: InstrId) -> Option<LoopResult>)
+                          inp: InstrId) -> Option<LoopResult>)
         -> Option<LoopResult> {
       let phi = g.phi(Normal);
       let res_phi = g.phi(Normal);
@@ -81,7 +81,7 @@ fn nested_loops() {
       let pre = do g.block() |b| {
         let init = b.add(Number(0), ~[]);
         b.to_phi(init, phi);
-        b.to_phi(in, res_phi);
+        b.to_phi(inp, res_phi);
         b.goto(cond);
       };
 
@@ -126,17 +126,17 @@ fn nested_loops() {
       Some(LoopResult{ pre: pre, after: after, out: res_phi })
     }
 
-    let in = g.new_instr(Number(0), ~[]);
-    let LoopResult{ pre, after, out } = do create_loop(g, in) |g, in| {
-      do create_loop(g, in) |g, in| {
-        do create_loop(g, in) |_, _| { None }
+    let inp = g.new_instr(Number(0), ~[]);
+    let LoopResult{ pre, after, out } = do create_loop(g, inp) |g, inp| {
+      do create_loop(g, inp) |g, inp| {
+        do create_loop(g, inp) |_, _| { None }
       }
     }.unwrap();
 
     // Start
     do g.block() |b| {
       b.make_root();
-      b.add_existing(in);
+      b.add_existing(inp);
       b.goto(pre);
     };
 
@@ -157,13 +157,13 @@ fn double_and_normal() {
       let mut normals = ~[];
       let mut doubles = ~[];
       let count = 16;
-      for uint::range(0, count) |i| {
+      for i in iterator::range(0, count) {
         normals.push(b.add(Number(i + 1), ~[]));
         doubles.push(b.add(DoubleNumber(((i + 1) as float) / 8f), ~[]));
       }
 
       let mut total = b.add(DoubleNumber(0f), ~[]);
-      for uint::range_rev(count - 1, 0) |i| {
+      for i in iterator::range(count - 1, 0).reverse_() {
         let left = b.add(Sum, ~[normals[i - 1], normals[i]]);
         let right = b.add(DoubleSum, ~[doubles[i - 1], doubles[i]]);
         let double_left = b.add(ToDouble, ~[left]);

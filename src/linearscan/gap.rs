@@ -28,10 +28,10 @@ impl<G: GroupHelper<R>,
      K: KindHelper<G, R>+Clone> GapResolver for Graph<K, G, R> {
   fn resolve_gaps(&mut self) {
     let mut keys = ~[];
-    for self.gaps.each_key() |id| {
+    for (id, _) in self.gaps.iter() {
       keys.push(InstrId(*id));
     }
-    for keys.each() |id| {
+    for id in keys.iter() {
       let state = self.resolve_gap(id);
 
       // Overwrite previous state

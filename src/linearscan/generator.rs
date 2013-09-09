@@ -49,7 +49,7 @@ impl<G: GroupHelper<R>,
     g.prelude();
 
     // Invoke functions in order of increasing instruction id
-    for self.instructions.each() |id, instr| {
+    for (id, instr) in self.instructions.iter() {
       // Skip phis
       match instr.kind {
         Phi(_) => loop,
@@ -82,8 +82,8 @@ impl<G: GroupHelper<R>,
           },
           None => None
         };
-        let inputs = do instr.inputs.map() |in| {
-          self.get_value(&self.get_output(in), instr.id).expect("input")
+        let inputs = do instr.inputs.map() |inp| {
+          self.get_value(&self.get_output(inp), instr.id).expect("input")
         };
         let temporary = do instr.temporary.map() |tmp| {
           self.get_value(tmp, instr.id).expect("temporary")
@@ -129,7 +129,7 @@ impl<G: GroupHelper<R>,
     for Graph<K, G, R> {
   fn generate_gap(&self, g: &mut GF, id: &InstrId) {
     match self.gaps.find(&id.to_uint()) {
-      Some(state) => for state.actions.each() |action| {
+      Some(state) => for action in state.actions.iter() {
         let from = self.get_interval(&action.from).value.clone();
         let to = self.get_interval(&action.to).value.clone();
 

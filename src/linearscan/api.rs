@@ -143,12 +143,12 @@ impl<'self,
       _ => fail!("Expected Phi argument")
     };
     let out = self.graph.get_instr(&phi).output.expect("Phi output");
-    let in = self.graph.get_instr(&input).output
-                 .expect("Phi input output");
+    let inp = self.graph.get_instr(&input).output
+                  .expect("Phi input output");
 
     // Insert one hint
     if self.graph.get_interval(&out).hint.is_none() {
-      self.graph.get_mut_interval(&out).hint = Some(in);
+      self.graph.get_mut_interval(&out).hint = Some(inp);
     }
 
     let res = Instruction::new_empty(self.graph, ToPhi(group), ~[input]);

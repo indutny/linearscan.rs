@@ -1,6 +1,6 @@
 use extra::sort::quick_sort;
 use extra::smallintmap::SmallIntMap;
-use std::{vec, uint};
+use std::{vec, uint, iterator};
 use linearscan::{KindHelper, RegisterHelper, GroupHelper};
 use linearscan::graph::{Graph, Interval,
                         IntervalId, InstrId, StackId, BlockId,
@@ -30,10 +30,10 @@ struct AllocatorState<G, R> {
 
 pub trait Allocator {
   // Prepare for allocation
-  pub fn prepare(&mut self);
+  fn prepare(&mut self);
 
   // Allocate registers
-  pub fn allocate(&mut self) -> Result<AllocatorResult, ~str>;
+  fn allocate(&mut self) -> Result<AllocatorResult, ~str>;
 }
 
 enum SplitConf {
@@ -84,17 +84,14 @@ trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
                          state: &'r mut AllocatorState<G, R>);
 
   // Iterate through all active intervals
-  fn each_active<'r>(&'r self,
-                     state: &'r AllocatorState<G, R>,
-                     f: &fn(i: &IntervalId, reg: &R) -> bool) -> bool;
+  fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
+      -> iterator::Map;
 
   // Iterate through all inactive intervals that are intersecting with current
-  fn each_intersecting<'r>(&'r self,
+  fn iter_intersecting<'r>(&'r self,
                            current: IntervalId,
-                           state: &'r AllocatorState<G, R>,
-                           f: &fn(i: &IntervalId,
-                                  reg: &R,
-                                  pos: InstrId) -> bool) -> bool;
+                           state: &'r AllocatorState<G, R>)
+      -> iterator::FilterMap;
 
   // Verify allocation results
   fn verify(&self);
@@ -122,10 +119,10 @@ impl<G: GroupHelper<R>,
 
     // Create physical fixed intervals
     let groups: ~[G] = GroupHelper::groups();
-    for groups.each() |group| {
+    for group in groups.iter() {
       self.physical.insert(group.to_uint(), ~SmallIntMap::new());
       let regs = group.registers();
-      for regs.each() |reg| {
+      for reg in regs.iter() {
         let interval = Interval::new::<G, R, K>(self, group.clone());
         self.get_mut_interval(&interval).value = RegisterVal(reg.clone());
         self.get_mut_interval(&interval).fixed = true;
@@ -141,7 +138,7 @@ impl<G: GroupHelper<R>,
       Ok(_) => {
         let mut results = ~[];
         // In each register group
-        for groups.each() |group| {
+        for group in groups.iter() {
           // Walk intervals!
           match self.walk_intervals(group) {
             Ok(res) => {
@@ -190,7 +187,7 @@ impl<G: GroupHelper<R>,
     };
 
     // We'll work with intervals that contain any ranges
-    for self.intervals.each() |_, interval| {
+    for (_, interval) in self.intervals.iter() {
       if &interval.value.group() == state.group && interval.ranges.len() > 0 {
         if interval.fixed {
           // Push all physical registers to active
@@ -233,7 +230,7 @@ impl<G: GroupHelper<R>,
       };
 
       // Return handled spills
-      for handled.each() |v| {
+      for v in handled.iter() {
         state.to_handled(v)
       }
 
@@ -268,12 +265,12 @@ impl<G: GroupHelper<R>,
     let hint = self.get_hint(current);
 
     // All active intervals use registers
-    for self.each_active(state) |_, reg| {
+    for (_, reg) in self.iter_active(state) {
       free_pos[reg.to_uint()] = 0;
     }
 
     // All inactive registers will eventually use registers
-    for self.each_intersecting(current, state) |_, reg, pos| {
+    for (_, reg, pos) in self.iter_intersecting(current, state) {
       if free_pos[reg.to_uint()] > pos.to_uint() {
         free_pos[reg.to_uint()] = pos.to_uint();
       }
@@ -298,14 +295,14 @@ impl<G: GroupHelper<R>,
       None => {
         // Prefer hinted register
         match hint {
-          Some(hint) => for free_pos.eachi() |i, &pos| {
+          Some(hint) => for (i, &pos) in free_pos.iter().enumerate() {
             if pos > max_pos.to_uint() ||
                hint.to_uint() == i && pos == max_pos.to_uint() {
               max_pos = InstrId(pos);
               reg = i;
             }
           },
-          None => for free_pos.eachi() |i, &pos| {
+          None => for (i, &pos) in free_pos.iter().enumerate() {
             if pos > max_pos.to_uint() {
               max_pos = InstrId(pos);
               reg = i;
@@ -373,7 +370,7 @@ impl<G: GroupHelper<R>,
     let hint = self.get_hint(current);
 
     // Populate use_pos from every non-fixed interval
-    for self.each_active(state) |id, reg| {
+    for (id, reg) in self.iter_active(state) {
       let interval = self.get_interval(id);
       if !interval.fixed {
         let int_reg = reg.to_uint();
@@ -385,7 +382,7 @@ impl<G: GroupHelper<R>,
         }
       }
     }
-    for self.each_intersecting(current, state) |id, reg, _| {
+    for (id, reg, _) in self.iter_intersecting(current, state) {
       let interval = self.get_interval(id);
       if !interval.fixed {
         let int_reg = reg.to_uint();
@@ -399,14 +396,14 @@ impl<G: GroupHelper<R>,
     }
 
     // Populate block_pos from every fixed interval
-    for self.each_active(state) |id, reg| {
+    for (id, reg) in self.iter_active(state) {
       if self.get_interval(id).fixed {
         let int_reg = reg.to_uint();
         block_pos[int_reg] = 0;
         use_pos[int_reg] = 0;
       }
     }
-    for self.each_intersecting(current, state) |id, reg, pos| {
+    for (id, reg, pos) in self.iter_intersecting(current, state) {
       if self.get_interval(id).fixed {
         let int_reg = reg.to_uint();
         let int_pos = pos.to_uint();
@@ -436,13 +433,13 @@ impl<G: GroupHelper<R>,
       None => {
         // Prefer hinted register
         match hint {
-          Some(hint) => for use_pos.eachi() |i, &pos| {
+          Some(hint) => for (i, &pos) in use_pos.iter().enumerate() {
             if pos > max_pos || hint.to_uint() == i && pos == max_pos {
               max_pos = pos;
               reg = i;
             }
           },
-          None => for use_pos.eachi() |i, &pos| {
+          None => for (i, &pos) in use_pos.iter().enumerate() {
             if pos > max_pos {
               max_pos = pos;
               reg = i;
@@ -488,34 +485,27 @@ impl<G: GroupHelper<R>,
     return Ok(());
   }
 
-  fn each_active<'r>(&'r self,
-                     state: &'r AllocatorState<G, R>,
-                     f: &fn(i: &IntervalId, reg: &R) -> bool) -> bool {
-    for state.active.each() |id| {
+  fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>) -> Map {
+    state.active.iter().map(|id| {
       match self.get_interval(id).value {
-        RegisterVal(ref reg) => if !f(id, reg) { break },
+        RegisterVal(ref reg) => (id, reg),
         _ => fail!("Expected register in active")
-      };
-    }
-    true
+      }
+    })
   }
 
-  fn each_intersecting<'r>(&'r self,
+  fn iter_intersecting<'r>(&'r self,
                            current: IntervalId,
-                           state: &'r AllocatorState<G, R>,
-                           f: &fn(i: &IntervalId,
-                                  reg: &R,
-                                  pos: InstrId) -> bool) -> bool {
-    for state.inactive.each() |id| {
+                           state: &'r AllocatorState<G, R>) -> Map {
+    state.inactive.iter().filter_map(|id| {
       match self.get_intersection(id, &current) {
         Some(pos) => match self.get_interval(id).value {
-          RegisterVal(ref reg) => if !f(id, reg, pos) { break },
+          RegisterVal(ref reg) => Some((id, reg, pos)),
           _ => fail!("Expected register in inactive")
         },
-        None => ()
-      };
-    }
-    true
+        None => None
+      }
+    })
   }
 
   fn sort_unhandled<'r>(&'r mut self, state: &'r mut AllocatorState<G, R>) {
@@ -570,19 +560,19 @@ impl<G: GroupHelper<R>,
 
     // Filter out intersecting intervals
     let mut to_split = ~[];
-    for self.each_active(state) |id, _reg| {
+    for (id, _reg) in self.iter_active(state) {
       if _reg == &reg {
         to_split.push(*id);
       }
     }
-    for self.each_intersecting(current, state) |id, _reg, _| {
+    for (id, _reg, _) in self.iter_intersecting(current, state) {
       if _reg == &reg {
         to_split.push(*id);
       }
     }
 
     // Split and spill!
-    for to_split.each() |id| {
+    for id in to_split.iter() {
       // Spill before or at start of `current`
       let spill_pos = if self.clobbers(state.group, &start) ||
                          self.is_gap(&start) {
@@ -611,14 +601,14 @@ impl<G: GroupHelper<R>,
   }
 
   fn resolve_data_flow(&mut self, list: &[BlockId]) {
-    for list.each() |block_id| {
+    for block_id in list.iter() {
       let block_end = self.get_block(block_id).end().prev();
       let successors = self.get_block(block_id).successors.clone();
-      for successors.each() |succ_id| {
+      for succ_id in successors.iter() {
         let succ_start = self.get_block(succ_id).start().clone();
         let live_in = self.get_block(succ_id).live_in.clone();
 
-        for live_in.each() |&interval| {
+        for &interval in live_in.iter() {
           let interval_id = IntervalId(interval);
           let parent = match self.get_interval(&interval_id).parent {
             Some(p) => p,
@@ -645,7 +635,7 @@ impl<G: GroupHelper<R>,
   fn build_ranges(&mut self, blocks: &[BlockId])
       -> Result<(), ~str> {
     let physical = self.physical.clone();
-    for blocks.rev_iter().advance |block_id| {
+    for block_id in blocks.rev_iter() {
       let instructions = self.get_block(block_id).instructions.clone();
       let live_out = self.get_block(block_id).live_out.clone();
       let block_from = self.get_block(block_id).start();
@@ -654,21 +644,21 @@ impl<G: GroupHelper<R>,
       // Assume that each live_out interval lives for the whole time of block
       // NOTE: we'll shorten it later if definition of this interval appears to
       // be in this block
-      for live_out.each() |&int_id| {
+      for &int_id in live_out.iter() {
         self.get_mut_interval(&IntervalId(int_id))
             .add_range(block_from, block_to);
       }
 
-      for instructions.rev_iter().advance |&instr_id| {
+      for &instr_id in instructions.rev_iter() {
         let instr = self.get_instr(&instr_id).clone();
 
         // Call instructions should swap out all used registers into stack slots
         let groups: ~[G] = GroupHelper::groups();
-        for groups.each() |group| {
+        for group in groups.iter() {
           self.physical.insert(group.to_uint(), ~SmallIntMap::new());
           if instr.kind.clobbers(group) {
             let regs = group.registers();
-            for regs.each() |reg| {
+            for reg in regs.iter() {
               self.get_mut_interval(physical.get(&group.to_uint())
                   .get(&reg.to_uint()))
                   .add_range(instr_id, instr_id.next());
@@ -701,7 +691,7 @@ impl<G: GroupHelper<R>,
         }
 
         // Process temporary
-        for instr.temporary.each() |tmp| {
+        for tmp in instr.temporary.iter() {
           let group = self.get_interval(tmp).value.group();
           if instr.kind.clobbers(&group) {
             return Err(~"Call instruction can't have temporary registers");
@@ -711,7 +701,7 @@ impl<G: GroupHelper<R>,
         }
 
         // Process inputs
-        for instr.inputs.eachi() |i, input_instr| {
+        for (i, input_instr) in instr.inputs.iter().enumerate() {
           let input = self.get_output(input_instr);
           if !self.get_interval(&input).covers(instr_id) {
             self.get_mut_interval(&input).add_range(block_from, instr_id);
@@ -730,12 +720,12 @@ impl<G: GroupHelper<R>,
 
   fn split_fixed(&mut self) {
     let mut list = ~[];
-    for self.intervals.each() |_, interval| {
+    for (_, interval) in self.intervals.iter() {
       if interval.uses.any(|u| { u.kind.is_fixed() }) {
         list.push(interval.id);
       }
     }
-    for list.each() |id| {
+    for id in list.iter() {
       let cur = *id;
 
       let mut uses = self.get_interval(id).uses.clone();
@@ -758,13 +748,13 @@ impl<G: GroupHelper<R>,
 
   #[cfg(test)]
   fn verify(&self) {
-    for self.intervals.each() |_, interval| {
+    for (_, interval) in self.intervals.iter() {
       if interval.ranges.len() > 0 {
         // Every interval should have a non-virtual value
         assert!(!interval.value.is_virtual());
 
         // Each use should receive the same type of input as it has requested
-        for interval.uses.each() |u| {
+        for u in interval.uses.iter() {
           // Allocated groups should not differ from specified
           assert!(u.kind.group() == interval.value.group());
           match u.kind {

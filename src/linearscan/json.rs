@@ -150,7 +150,7 @@ impl<G: GroupHelper<R>+ToStr,
   fn get_blocks(&self) -> Json {
     let mut result = ~[];
 
-    for self.blocks.each() |_, block| {
+    for (_, block) in self.blocks.iter() {
       result.push(block.to_json());
     }
 
@@ -160,7 +160,7 @@ impl<G: GroupHelper<R>+ToStr,
   fn get_intervals(&self) -> Json {
     let mut result = ~[];
 
-    for self.intervals.each() |_, interval| {
+    for (_, interval) in self.intervals.iter() {
       let mut obj = match interval.to_json() {
         Object(obj) => obj,
         _ => fail!("Unexpected interval JSON type")
@@ -176,7 +176,7 @@ impl<G: GroupHelper<R>+ToStr,
   fn get_instructions(&self) -> Json {
     let mut result = ~HashMap::new();
 
-    for self.instructions.each() |id, instruction| {
+    for (id, instruction) in self.instructions.iter() {
       let mut obj = match instruction.to_json() {
         Object(obj) => obj,
         _ => fail!("Unexpected instruction JSON type")

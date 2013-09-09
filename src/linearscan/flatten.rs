@@ -39,7 +39,7 @@ impl<G: GroupHelper<R>,
     while queue.len() > 0 {
       let cur = queue.shift();
       visited.insert(cur.to_uint());
-      for self.get_block(&cur).successors.each() |succ| {
+      for succ in self.get_block(&cur).successors.iter() {
         if visited.contains(&succ.to_uint()) {
           // Loop detected
           if ends.contains_key(&succ.to_uint()) {
@@ -60,7 +60,7 @@ impl<G: GroupHelper<R>,
     let ends = self.flatten_get_ends();
     let mut loop_index = 1;
 
-    for ends.each() |&start, ends| {
+    for (&start, ends) in ends.iter() {
       let start_id = BlockId(start);
       let mut visited = ~BitvSet::new();
       let mut queue = ~[];
@@ -70,7 +70,9 @@ impl<G: GroupHelper<R>,
       assert!(self.get_block(&start_id).incoming_forward_branches == 2);
       self.get_mut_block(&start_id).incoming_forward_branches -= 1;
 
-      for ends.each() |end| { queue.push(*end); }
+      for end in ends.iter() {
+        queue.push(*end);
+      }
 
       while queue.len() > 0 {
         let cur = queue.shift();
@@ -88,7 +90,7 @@ impl<G: GroupHelper<R>,
 
         // Enqueue predecessors if current is not a loop start
         if cur.to_uint() != start {
-          for block.predecessors.each() |pred| {
+          for pred in block.predecessors.iter() {
             queue.push(*pred);
           }
         }
@@ -105,7 +107,7 @@ impl<G: GroupHelper<R>,
     let mut result = ~[];
     let mut mapping = ~SmallIntMap::new();
 
-    for list.each() |id| {
+    for id in list.iter() {
       let mut block = self.blocks.pop(&id.to_uint()).expect("block");
 
       // Update root id
@@ -118,7 +120,7 @@ impl<G: GroupHelper<R>,
       block_id += 1;
 
       // Update block id in it's instructions
-      for block.instructions.each() |instr_id| {
+      for instr_id in block.instructions.iter() {
         self.get_mut_instr(instr_id).block = block.id;
       }
 
@@ -150,14 +152,14 @@ impl<G: GroupHelper<R>,
     let mut map = ~SmallIntMap::new();
 
     // Go through blocks and map instructions
-    for list.each() |block| {
+    for block in list.iter() {
       let list = self.get_block(block).instructions.clone();
       let mut new_list = ~[];
       let start_gap = self.create_gap(block);
       new_list.push(start_gap.id);
       queue.push(start_gap);
 
-      for list.eachi() |i, id| {
+      for (i, id) in list.iter().enumerate() {
         // Pop each instruction from map
         let mut instr = self.instructions.pop(&id.to_uint()).unwrap();
 
@@ -249,7 +251,7 @@ impl<G: GroupHelper<R>,
 
       // Visit successors if they've no unvisited incoming forward edges
       let successors = self.get_block(&cur).successors.clone();
-      for successors.each() |succ_id| {
+      for succ_id in successors.iter() {
         let succ = self.get_mut_block(succ_id);
         if succ.incoming_forward_branches == 0 {
           loop;
