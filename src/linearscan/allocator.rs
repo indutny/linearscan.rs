@@ -87,7 +87,7 @@ trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
   fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
       -> iterator::Map<'r,
                        IntervalId,
-                       (IntervalId, R),
+                       (&IntervalId, &R),
                        vec::VecIterator<IntervalId> >;
 
   // Iterate through all inactive intervals that are intersecting with current
@@ -96,7 +96,7 @@ trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
                            state: &'r AllocatorState<G, R>)
       -> iterator::FilterMap<'r,
                              IntervalId,
-                             (IntervalId, R, InstrId),
+                             (&IntervalId, &R, InstrId),
                              vec::VecIterator<IntervalId> >;
 
   // Verify allocation results
@@ -494,7 +494,7 @@ impl<G: GroupHelper<R>,
   fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
       -> iterator::Map<'r,
                        IntervalId,
-                       (IntervalId, R),
+                       (&IntervalId, &R),
                        vec::VecIterator<IntervalId> > {
     state.active.iter().map(|id| {
       match self.get_interval(id).value {
@@ -510,7 +510,7 @@ impl<G: GroupHelper<R>,
                            state: &'r AllocatorState<G, R>)
       -> iterator::FilterMap<'r,
                              IntervalId,
-                             (IntervalId, R, InstrId),
+                             (&IntervalId, &R, InstrId),
                              vec::VecIterator<IntervalId> > {
     state.inactive.iter().filter_map(|id| {
       match self.get_intersection(id, &current) {
@@ -576,12 +576,12 @@ impl<G: GroupHelper<R>,
     // Filter out intersecting intervals
     let mut to_split = ~[];
     for (id, _reg) in self.iter_active(state) {
-      if _reg == reg {
+      if _reg == &reg {
         to_split.push(id);
       }
     }
     for (id, _reg, _) in self.iter_intersecting(current, state) {
-      if _reg == reg {
+      if _reg == &reg {
         to_split.push(id);
       }
     }
