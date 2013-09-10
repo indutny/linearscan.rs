@@ -86,7 +86,7 @@ trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
   // Iterate through all active intervals
   fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
       -> iterator::Map<'r,
-                       IntervalId,
+                       &IntervalId,
                        (&IntervalId, &R),
                        vec::VecIterator<IntervalId> >;
 
@@ -95,7 +95,7 @@ trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
                            current: IntervalId,
                            state: &'r AllocatorState<G, R>)
       -> iterator::FilterMap<'r,
-                             IntervalId,
+                             &IntervalId,
                              (&IntervalId, &R, InstrId),
                              vec::VecIterator<IntervalId> >;
 
@@ -493,7 +493,7 @@ impl<G: GroupHelper<R>,
 
   fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
       -> iterator::Map<'r,
-                       IntervalId,
+                       &IntervalId,
                        (&IntervalId, &R),
                        vec::VecIterator<IntervalId> > {
     state.active.iter().map(|id| {
@@ -509,7 +509,7 @@ impl<G: GroupHelper<R>,
                            current: IntervalId,
                            state: &'r AllocatorState<G, R>)
       -> iterator::FilterMap<'r,
-                             IntervalId,
+                             &IntervalId,
                              (&IntervalId, &R, InstrId),
                              vec::VecIterator<IntervalId> > {
     state.inactive.iter().filter_map(|id| {
