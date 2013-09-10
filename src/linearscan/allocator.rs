@@ -85,13 +85,19 @@ trait AllocatorHelper<G: GroupHelper<R>, R: RegisterHelper<G> > {
 
   // Iterate through all active intervals
   fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
-      -> iterator::Map;
+      -> iterator::Map<'r,
+                       IntervalId,
+                       (IntervalId, R),
+                       vec::VecIterator<IntervalId> >;
 
   // Iterate through all inactive intervals that are intersecting with current
   fn iter_intersecting<'r>(&'r self,
                            current: IntervalId,
                            state: &'r AllocatorState<G, R>)
-      -> iterator::FilterMap;
+      -> iterator::FilterMap<'r,
+                             IntervalId,
+                             (IntervalId, R, InstrId),
+                             vec::VecIterator<IntervalId> >;
 
   // Verify allocation results
   fn verify(&self);
@@ -123,7 +129,7 @@ impl<G: GroupHelper<R>,
       self.physical.insert(group.to_uint(), ~SmallIntMap::new());
       let regs = group.registers();
       for reg in regs.iter() {
-        let interval = Interval::new::<G, R, K>(self, group.clone());
+        let interval = Interval::<G, R>::new::<K>(self, group.clone());
         self.get_mut_interval(&interval).value = RegisterVal(reg.clone());
         self.get_mut_interval(&interval).fixed = true;
         self.physical.find_mut(&group.to_uint()).unwrap().insert(reg.to_uint(),
@@ -485,7 +491,11 @@ impl<G: GroupHelper<R>,
     return Ok(());
   }
 
-  fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>) -> Map {
+  fn iter_active<'r>(&'r self, state: &'r AllocatorState<G, R>)
+      -> iterator::Map<'r,
+                       IntervalId,
+                       (IntervalId, R),
+                       vec::VecIterator<IntervalId> > {
     state.active.iter().map(|id| {
       match self.get_interval(id).value {
         RegisterVal(ref reg) => (id, reg),
@@ -494,9 +504,14 @@ impl<G: GroupHelper<R>,
     })
   }
 
+  // Iterate through all inactive intervals that are intersecting with current
   fn iter_intersecting<'r>(&'r self,
                            current: IntervalId,
-                           state: &'r AllocatorState<G, R>) -> Map {
+                           state: &'r AllocatorState<G, R>)
+      -> iterator::FilterMap<'r,
+                             IntervalId,
+                             (IntervalId, R, InstrId),
+                             vec::VecIterator<IntervalId> > {
     state.inactive.iter().filter_map(|id| {
       match self.get_intersection(id, &current) {
         Some(pos) => match self.get_interval(id).value {
@@ -562,12 +577,12 @@ impl<G: GroupHelper<R>,
     let mut to_split = ~[];
     for (id, _reg) in self.iter_active(state) {
       if _reg == &reg {
-        to_split.push(*id);
+        to_split.push(id);
       }
     }
     for (id, _reg, _) in self.iter_intersecting(current, state) {
       if _reg == &reg {
-        to_split.push(*id);
+        to_split.push(id);
       }
     }
 
@@ -608,7 +623,7 @@ impl<G: GroupHelper<R>,
         let succ_start = self.get_block(succ_id).start().clone();
         let live_in = self.get_block(succ_id).live_in.clone();
 
-        for &interval in live_in.iter() {
+        for interval in live_in.iter() {
           let interval_id = IntervalId(interval);
           let parent = match self.get_interval(&interval_id).parent {
             Some(p) => p,

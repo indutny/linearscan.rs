@@ -43,6 +43,19 @@ pub trait KindHelper<G: GroupHelper<R>, R: RegisterHelper<G> >: Clone {
   fn result_kind(&self) -> Option<UseKind<G, R> >;
 }
 
+pub trait GraphAPI<K: KindHelper<G, R>,
+                   G: GroupHelper<R>,
+                   R: RegisterHelper<G> > {
+  fn empty_block(&mut self) -> BlockId;
+  fn block(&mut self, body: &fn(b: &mut BlockBuilder<K, G, R>)) -> BlockId;
+  fn phi(&mut self, group: G) -> InstrId;
+  fn with_block(&mut self,
+                id: BlockId,
+                body: &fn(b: &mut BlockBuilder<K, G, R>));
+  fn new_instr(&mut self, kind: K, args: ~[InstrId]) -> InstrId;
+  fn set_root(&mut self, id: BlockId);
+}
+
 impl<G: GroupHelper<R>, R: RegisterHelper<G> > GroupAutoHelper<R> for G {
   fn use_any(&self) -> UseKind<G, R> { UseAny(self.clone()) }
   fn use_reg(&self) -> UseKind<G, R> { UseRegister(self.clone()) }
@@ -54,7 +67,7 @@ impl<G: GroupHelper<R>, R: RegisterHelper<G> > RegisterAutoHelper<G> for R {
 
 impl<G: GroupHelper<R>,
      R: RegisterHelper<G>,
-     K: KindHelper<G, R> > Graph<K, G, R> {
+     K: KindHelper<G, R> > GraphAPI<K, G, R> for Graph<K, G, R> {
   /// Create empty block
   pub fn empty_block(&mut self) -> BlockId {
     let block = ~Block::new(self);
