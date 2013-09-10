@@ -576,12 +576,12 @@ impl<G: GroupHelper<R>,
     // Filter out intersecting intervals
     let mut to_split = ~[];
     for (id, _reg) in self.iter_active(state) {
-      if _reg == &reg {
+      if _reg == reg {
         to_split.push(id);
       }
     }
     for (id, _reg, _) in self.iter_intersecting(current, state) {
-      if _reg == &reg {
+      if _reg == reg {
         to_split.push(id);
       }
     }
